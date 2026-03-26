@@ -120,7 +120,7 @@ export type CrawlJob = {
 };
 
 // ── Auth types ────────────────────────────────────────────────────────────────
-export type UserRole = "owner" | "admin" | "viewer";
+export type UserRole = "customer";
 
 export type AuthUser = {
   id: string;

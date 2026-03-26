@@ -46,7 +46,7 @@ export default function Sidebar() {
       const payload = JSON.parse(atob(token.split(".")[1]));
       const role = payload?.role ?? "";
       setIsSuperAdmin(role === "super_admin");
-      setIsOwnerOrAbove(["super_admin", "owner"].includes(role));
+      setIsOwnerOrAbove(["super_admin", "customer"].includes(role));
       setUserEmail(payload?.email ?? "");
       setUserName(payload?.name ?? payload?.email?.split("@")[0] ?? "");
 

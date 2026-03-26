@@ -106,7 +106,7 @@ export default function UsersPage() {
   const [editingUser,     setEditingUser]      = useState<User | null>(null);
   const [formEmail,       setFormEmail]        = useState("");
   const [formPassword,    setFormPassword]     = useState("");
-  const [formRole,        setFormRole]         = useState("owner");
+  const [formRole,        setFormRole]         = useState("customer");
   const [formSubPlanId,   setFormSubPlanId]    = useState("");
   const [formDuration,    setFormDuration]     = useState(1);
   const [saving,          setSaving]           = useState(false);
