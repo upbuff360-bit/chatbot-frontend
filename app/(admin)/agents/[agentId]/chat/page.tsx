@@ -75,6 +75,8 @@ This business provides general services and assistance. As an AI agent, your goa
 type Tab = "basic" | "content" | "style" | "ai" | "embed";
 type EmbedType = "floating" | "iframe";
 type Appearance = "light" | "dark";
+// ── NEW: Platform type ────────────────────────────────────────────────────────
+type PlatformTab = "html" | "astro" | "react" | "vue";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "basic", label: "Basic" },
@@ -83,6 +85,102 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "ai", label: "AI" },
   { id: "embed", label: "Embed" },
 ];
+
+// ── NEW: Platform tab definitions ─────────────────────────────────────────────
+const PLATFORM_TABS: { id: PlatformTab; label: string; icon: string }[] = [
+  { id: "html",  label: "HTML / PHP / Django", icon: "🌐" },
+  { id: "astro", label: "Astro",               icon: "🚀" },
+  { id: "react", label: "React / Next.js",     icon: "⚛️" },
+  { id: "vue",   label: "Vue / Nuxt",          icon: "💚" },
+];
+
+// ── NEW: Platform snippet generator ──────────────────────────────────────────
+function getEmbedSnippet(
+  platform: PlatformTab,
+  agentId: string,
+  primaryColor: string,
+  appearance: string,
+  backendUrl: string
+): string {
+  const config = `  window.chatbotConfig = {
+    agentId: "${agentId}",
+    primaryColor: "${primaryColor}",
+    appearance: "${appearance}",
+    apiBase: "${backendUrl}",
+  };`;
+
+  switch (platform) {
+    case "html":
+      return `<!-- Paste before </body> -->
+<script>
+${config}
+</script>
+<script src="${backendUrl}/widget.js" async></script>`;
+
+    case "astro":
+      return `<!-- Paste before </body> in your Layout.astro -->
+<script is:inline>
+${config}
+</script>
+<script src="${backendUrl}/widget.js" async is:inline></script>
+<script is:inline>
+  document.addEventListener('astro:page-load', () => {
+    if (!document.querySelector('#cw-bubble')) {
+      const s = document.createElement('script');
+      s.src = "${backendUrl}/widget.js";
+      s.async = true;
+      document.body.appendChild(s);
+    }
+  });
+</script>`;
+
+    case "react":
+      return `// Add to your root layout (layout.tsx or _app.tsx)
+"use client";
+import { useEffect } from 'react';
+
+export default function ChatWidget() {
+  useEffect(() => {
+    (window as any).chatbotConfig = {
+      agentId: "${agentId}",
+      primaryColor: "${primaryColor}",
+      appearance: "${appearance}",
+      apiBase: "${backendUrl}",
+    };
+    if (!document.querySelector('#cw-bubble')) {
+      const script = document.createElement('script');
+      script.src = '${backendUrl}/widget.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+  return null;
+}
+
+// Then add <ChatWidget /> inside your layout`;
+
+    case "vue":
+      return `<!-- Add to App.vue or your default layout -->
+<script setup>
+import { onMounted } from 'vue';
+
+onMounted(() => {
+  (window as any).chatbotConfig = {
+    agentId: "${agentId}",
+    primaryColor: "${primaryColor}",
+    appearance: "${appearance}",
+    apiBase: "${backendUrl}",
+  };
+  if (!document.querySelector('#cw-bubble')) {
+    const script = document.createElement('script');
+    script.src = '${backendUrl}/widget.js';
+    script.async = true;
+    document.body.appendChild(script);
+  }
+});
+</script>`;
+  }
+}
 
 function renderMarkdown(text: string): string {
   return text
@@ -126,6 +224,8 @@ export default function PlaygroundPage() {
 
   // ── Embed tab ──────────────────────────────────────────────────────────────
   const [embedType, setEmbedType] = useState<EmbedType>("floating");
+  // ── NEW: platform tab state ───────────────────────────────────────────────
+  const [platformTab, setPlatformTab] = useState<PlatformTab>("html");
 
   // ── Live chat ──────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -307,17 +407,6 @@ export default function PlaygroundPage() {
   const backendUrl  = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8001";
   const embedSiteUrl = websiteUrl ? websiteUrl.replace(/\/$/, "") : "https://your-website.com";
 
-  const floatingSnippet = `<!-- Paste before </body> -->
-<script>
-  window.chatbotConfig = {
-    agentId: "${agentId}",
-    primaryColor: "${primaryColor}",
-    appearance: "${appearance}",
-    apiBase: "${backendUrl}",
-  };
-</script>
-<script src="${backendUrl}/widget.js" async></script>`;
-
   const iframeSnippet = `<iframe
   src="${backendUrl}/embed/${agentId}"
   width="100%"
@@ -325,6 +414,14 @@ export default function PlaygroundPage() {
   style="border:none;border-radius:12px;"
   allow="clipboard-write"
 ></iframe>`;
+
+  // ── NEW: Platform hint map ────────────────────────────────────────────────
+  const platformHint: Record<PlatformTab, { color: string; text: React.ReactNode }> = {
+    html:  { color: "border-blue-100 bg-blue-50 text-blue-700",      text: <><strong>HTML / PHP / Django:</strong> Paste directly before <code className="rounded bg-blue-100 px-1">&lt;/body&gt;</code> in your template file.</> },
+    astro: { color: "border-orange-100 bg-orange-50 text-orange-700", text: <><strong>Astro:</strong> Uses <code className="rounded bg-orange-100 px-1">is:inline</code> to prevent Astro bundling. Add to <code className="rounded bg-orange-100 px-1">Layout.astro</code>.</> },
+    react: { color: "border-cyan-100 bg-cyan-50 text-cyan-700",      text: <><strong>React / Next.js:</strong> Uses <code className="rounded bg-cyan-100 px-1">useEffect</code> to inject after mount. Add to your root layout.</> },
+    vue:   { color: "border-green-100 bg-green-50 text-green-700",    text: <><strong>Vue / Nuxt:</strong> Uses <code className="rounded bg-green-100 px-1">onMounted</code> to inject after mount. Add to <code className="rounded bg-green-100 px-1">App.vue</code>.</> },
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden">
@@ -571,8 +668,49 @@ export default function PlaygroundPage() {
                   </div>
                 </Field>
 
-                <Field label="Embed code" hint="Copy and paste into your website HTML.">
-                  <CodeBlock code={embedType === "floating" ? floatingSnippet : iframeSnippet} />
+                {/* ── NEW: Platform selector — only shown for floating widget ── */}
+                {embedType === "floating" && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-800 mb-1">Your technology</p>
+                    <p className="text-xs text-slate-400 mb-3">Select your framework to get the correct embed snippet.</p>
+
+                    <div className="flex flex-col gap-1.5 mb-3">
+                    <div
+  className="flex border-b border-slate-100 mb-3 overflow-x-auto"
+  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+>
+                      {PLATFORM_TABS.map((pt) => (
+                        <button
+                          key={pt.id}
+                          type="button"
+                          onClick={() => setPlatformTab(pt.id)}
+                          className={[
+                            "relative flex items-center gap-1.5 px-2 py-2.5 text-xs font-medium transition whitespace-nowrap",
+                            platformTab === pt.id
+                              ? "text-slate-900 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-slate-900"
+                              : "text-slate-400 hover:text-slate-600",
+                          ].join(" ")}
+                        >
+                          <span>{pt.icon}</span>
+                          <span>{pt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    </div>
+
+                    {/* Platform-specific hint */}
+                    <div className={`rounded-lg border px-3 py-2.5 text-xs leading-5 mb-1 ${platformHint[platformTab].color}`}>
+                      {platformHint[platformTab].text}
+                    </div>
+                  </div>
+                )}
+
+                <Field label="Embed code" hint="Copy and paste into your project.">
+                  <CodeBlock code={
+                    embedType === "iframe"
+                      ? iframeSnippet
+                      : getEmbedSnippet(platformTab, agentId, primaryColor, appearance, backendUrl)
+                  } />
                 </Field>
 
                 {!websiteUrl && (
@@ -583,7 +721,7 @@ export default function PlaygroundPage() {
               </>
             )}
 
-            {/* ── Save button ── */}
+            {/* ── Save button — shown on all tabs except embed ── */}
             {activeTab !== "embed" && (
               <div className="pt-2 border-t border-slate-100">
                 <button
@@ -695,7 +833,7 @@ export default function PlaygroundPage() {
               className="flex justify-center py-1.5 flex-shrink-0"
               style={{ background: isDark ? "#0f172a" : "#fff", borderTop: `1px solid ${isDark ? "#1e293b" : "#f1f5f9"}` }}
             >
-              <p className="text-[10px]" style={{ color: isDark ? "#475569" : "#94a3b8" }}>Powered by <a href = "https://upbuff.com/" target="blank"><b>UpBuff AI</b></a></p>
+              <p className="text-[10px]" style={{ color: isDark ? "#475569" : "#94a3b8" }}>Powered by <a href="https://upbuff.com/" target="blank"><b>UpBuff AI</b></a></p>
             </div>
 
             {/* Input */}
