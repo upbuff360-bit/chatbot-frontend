@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import AgentCard from "@/components/AgentCard";
@@ -11,11 +11,20 @@ export default function AgentsPage() {
   const { agents, loading, updateAgentRecord, deleteAgentRecord } = useAdmin();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"mine" | "shared">("mine");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem("chatbot_access_token");
+      if (!token) return;
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      setIsSuperAdmin(payload?.role === "super_admin");
+    } catch {}
+  }, []);
 
   const myAgents = agents.filter((a) => !a.is_shared);
   const sharedAgents = agents.filter((a) => a.is_shared);
-
-  const activeAgents = tab === "mine" ? myAgents : sharedAgents;
+  const activeAgents = isSuperAdmin ? agents : (tab === "mine" ? myAgents : sharedAgents);
 
   const filtered = activeAgents.filter((a) => {
     const q = search.toLowerCase().trim();
@@ -31,7 +40,12 @@ export default function AgentsPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-base font-semibold text-slate-900">Agents</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-base font-semibold text-slate-900">Agents</h1>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+            {loading ? "—" : filtered.length}
+          </span>
+        </div>
         <button
           type="button"
           onClick={() => router.push("/agents/new/chat")}
@@ -41,37 +55,39 @@ export default function AgentsPage() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 w-fit">
-        <button
-          type="button"
-          onClick={() => setTab("mine")}
-          className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-            tab === "mine"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          My Agents
-          <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-            {loading ? "—" : myAgents.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("shared")}
-          className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-            tab === "shared"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          Shared with me
-          <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-            {loading ? "—" : sharedAgents.length}
-          </span>
-        </button>
-      </div>
+      {/* Tabs — only for non super_admin */}
+      {!isSuperAdmin && (
+        <div className="flex border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setTab("mine")}
+            className={`px-4 pb-2.5 text-sm font-medium transition border-b-2 -mb-px ${
+              tab === "mine"
+                ? "border-slate-900 text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            My Agents
+            <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+              {loading ? "—" : myAgents.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("shared")}
+            className={`px-4 pb-2.5 text-sm font-medium transition border-b-2 -mb-px ${
+              tab === "shared"
+                ? "border-slate-900 text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Shared with me
+            <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+              {loading ? "—" : sharedAgents.length}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="relative">
