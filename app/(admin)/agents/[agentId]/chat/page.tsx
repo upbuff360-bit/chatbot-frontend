@@ -84,6 +84,17 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "embed", label: "Embed" },
 ];
 
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/^- (.+)$/gm, "• $1")
+    .replace(/\n/g, "<br>");
+}
+
 export default function PlaygroundPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const router = useRouter();
@@ -109,9 +120,7 @@ export default function PlaygroundPage() {
   const [primaryColor, setPrimaryColor] = useState("#0f172a");
   const [secondaryColor, setSecondaryColor] = useState("#f8fafc");
 
-  // ── AI tab — always-editable prompt ───────────────────────────────────────
-  // selectedPreset tracks the dropdown so we know which label is "active".
-  // promptText is always the live editable value — loaded from preset or typed.
+  // ── AI tab ─────────────────────────────────────────────────────────────────
   const [selectedPreset, setSelectedPreset] = useState("Basic Instructions");
   const [promptText, setPromptText] = useState(PRESET_PROMPTS[0].value);
 
@@ -129,14 +138,11 @@ export default function PlaygroundPage() {
   useEffect(() => {
     if (!agentId || isNew) return;
 
-    // Load agent name directly from agents list or API
     const fetchAgentName = async () => {
-      // Try from agents list first
       const found = agents.find((a) => a.id === agentId);
       if (found?.name) {
         setAgentName(found.name);
       } else {
-        // Fallback: fetch agent directly
         try {
           const { getAgent } = await import("@/lib/api");
           const ag = await getAgent(agentId);
@@ -168,15 +174,10 @@ export default function PlaygroundPage() {
     );
   }, [agentId]);
 
-  // Set display name once agent is available
   useEffect(() => {
     if (agent?.name && !displayName) setDisplayName(agent.name);
   }, [agent?.name]);
 
-  // Reset chat when welcome message changes
-  // Reset chat ONLY when switching to a different agent — not on every welcomeMessage change.
-  // Previously this reset on welcomeMessage which caused chat to wipe whenever
-  // refreshAgents() was called (e.g. after deleting a document).
   const prevAgentId = useRef<string | null>(null);
   useEffect(() => {
     if (prevAgentId.current === agentId) return;
@@ -202,21 +203,18 @@ export default function PlaygroundPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatLoading]);
 
-  // When dropdown changes: load the preset text into the editable field
   const handlePresetChange = (label: string) => {
     setSelectedPreset(label);
     if (label !== "__custom__") {
       const found = PRESET_PROMPTS.find((p) => p.label === label);
       if (found) setPromptText(found.value);
     }
-    // if "__custom__" is chosen, keep whatever text is already in the box
   };
 
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      // ── New agent: create then save all settings ──
       if (isNew) {
         const name = agentName.trim();
         if (!name) {
@@ -226,7 +224,6 @@ export default function PlaygroundPage() {
           return;
         }
         const newAgent = await createAgentRecord(name);
-        // Save all settings entered in the form
         await updateSettings(newAgent.id, {
           system_prompt:   promptText,
           welcome_message: welcomeMessage || "Hi! What can I help you with?",
@@ -245,7 +242,6 @@ export default function PlaygroundPage() {
 
       if (!settings) { setSaving(false); return; }
 
-      // Update agent name if changed
       if (agentName.trim() && agentName.trim() !== agent?.name) {
         const { updateAgent } = await import("@/lib/api");
         await updateAgent(agentId, agentName.trim());
@@ -308,12 +304,8 @@ export default function PlaygroundPage() {
   const bubbleText = isDark ? "#f1f5f9" : "#1e293b";
   const dotColor = isDark ? "rgba(148,163,184,0.12)" : "rgba(203,213,225,0.5)";
 
-  // Website URL = where the widget is embedded (customer's site)
-  // Backend URL = where widget.js is hosted and API calls go
   const backendUrl  = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8001";
-  const embedSiteUrl = websiteUrl
-    ? websiteUrl.replace(/\/$/, "")
-    : "https://your-website.com";
+  const embedSiteUrl = websiteUrl ? websiteUrl.replace(/\/$/, "") : "https://your-website.com";
 
   const floatingSnippet = `<!-- Paste before </body> -->
 <script>
@@ -334,15 +326,12 @@ export default function PlaygroundPage() {
   allow="clipboard-write"
 ></iframe>`;
 
-  const docCount = agent?.document_count ?? 0;
-
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden">
 
       {/* ── Page title row ── */}
       <div className="flex items-center gap-3 mb-3 flex-shrink-0">
         <h1 className="text-base font-semibold text-slate-900">Playground</h1>
-        {/* Agent selector — show "New Agent" badge when creating, dropdown for existing */}
         {isNew ? (
           <span className="h-9 flex items-center px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm font-medium text-slate-400">
             New Agent
@@ -373,366 +362,385 @@ export default function PlaygroundPage() {
       {/* ── Grid ── */}
       <div className="flex flex-1 gap-0 overflow-hidden">
 
-      {/* ── Left panel: tabs + settings ─────────────────────────────────── */}
-      <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white mr-4">
+        {/* ── Left panel: tabs + settings ─────────────────────────────────── */}
+        <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white mr-4">
 
-        {/* Tab bar */}
-        <div className="flex border-b border-slate-100">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={[
-                "relative flex-1 py-2.5 text-xs font-medium transition",
-                activeTab === tab.id
-                  ? "text-slate-900 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-slate-900"
-                  : "text-slate-400 hover:text-slate-600",
-              ].join(" ")}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-
-          {/* ── Basic ─────────────────────────────────────────────────── */}
-          {activeTab === "basic" && (
-            <>
-              {/* ── Overview grid ── */}
-              <div className="space-y-2">
-                {/* Trained status */}
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="text-xs font-semibold text-slate-700">Trained</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400">Last updated just now</span>
-                </div>
-
-                {/* Agent stats grid */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
-                    <p className="text-[10px] font-medium text-slate-400">Data Sources</p>
-                    <p className="mt-0.5 text-lg font-bold text-slate-900">{agent?.document_count ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
-                    <p className="text-[10px] font-medium text-slate-400">Conversations</p>
-                    <p className="mt-0.5 text-lg font-bold text-slate-900">{agent?.conversation_count ?? 0}</p>
-                  </div>
-                </div>
-
-              </div>
-
-              <Field label="Agent name" hint="The name of this agent shown in the admin panel.">
-                <input
-                  type="text"
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="e.g. Support Agent"
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </Field>
-
-              <Field label="Website name" hint="The name of your website or business shown to users.">
-                <input
-                  type="text"
-                  value={websiteName}
-                  onChange={(e) => setWebsiteName(e.target.value)}
-                  placeholder="e.g. Acme Corp"
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </Field>
-
-              <Field label="Website URL" hint="The URL where the chat widget will be embedded.">
-                <input
-                  type="url"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="https://your-website.com"
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </Field>
-
-              {websiteUrl && (
-                <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-                  <div className="border-b border-slate-100 px-3.5 py-2.5">
-                    <p className="text-xs font-medium text-slate-500">Embed preview</p>
-                  </div>
-                  <div className="px-3.5 py-3 space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true">
-                        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Z" fill="currentColor" />
-                        <path d="M6.5 5.75A.75.75 0 0 1 7.25 5h1.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75H7.25a.75.75 0 0 1-.75-.75v-4.5Z" fill="currentColor" />
-                      </svg>
-                      <span>Widget will appear on</span>
-                    </div>
-                    <a
-                      href={websiteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block truncate text-sm font-medium text-blue-600 hover:underline"
-                    >
-                      {websiteUrl}
-                    </a>
-                    {websiteName && (
-                      <p className="text-xs text-slate-400">{websiteName}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── Content ───────────────────────────────────────────────── */}
-          {activeTab === "content" && (
-            <>
-              <Field label="Display name" hint="Shown in the chat widget header.">
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={agent?.name ?? "Agent name"}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </Field>
-
-              <Field label="Welcome message" hint="First message users see when chat opens.">
-                <textarea
-                  value={welcomeMessage}
-                  onChange={(e) => setWelcomeMessage(e.target.value)}
-                  rows={4}
-                  placeholder="Hi! What can I help you with?"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </Field>
-            </>
-          )}
-
-          {/* ── Style ─────────────────────────────────────────────────── */}
-          {activeTab === "style" && (
-            <>
-              <Field label="Appearance" hint="Light or dark mode for the chat widget.">
-                <div className="flex gap-3">
-                  <AppearanceCard value="light" selected={appearance === "light"} onClick={() => setAppearance("light")} />
-                  <AppearanceCard value="dark" selected={appearance === "dark"} onClick={() => setAppearance("dark")} />
-                </div>
-              </Field>
-
-              <Field label="Primary color" hint="Header, user bubbles, send button.">
-                <div className="flex items-center gap-2">
-                  <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 p-0.5" />
-                  <input type="text" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-mono text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white" />
-                  {["#0f172a","#2563eb","#16a34a","#9333ea","#dc2626"].map((c) => (
-                    <ColorSwatch key={c} color={c} active={primaryColor === c} onClick={() => setPrimaryColor(c)} />
-                  ))}
-                </div>
-              </Field>
-
-              <Field label="Secondary color" hint="Chat background and assistant bubbles.">
-                <div className="flex items-center gap-2">
-                  <input type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 p-0.5" />
-                  <input type="text" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-mono text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white" />
-                  {["#f8fafc","#f0fdf4","#eff6ff","#faf5ff","#1e293b"].map((c) => (
-                    <ColorSwatch key={c} color={c} active={secondaryColor === c} onClick={() => setSecondaryColor(c)} />
-                  ))}
-                </div>
-              </Field>
-            </>
-          )}
-
-          {/* ── AI ────────────────────────────────────────────────────── */}
-          {activeTab === "ai" && (
-            <>
-              <Field label="System prompt" hint="Select a starting template, then edit freely below.">
-                {/* Dropdown — selecting a preset loads its text into the textarea */}
-                <div className="relative">
-                  <select
-                    value={selectedPreset}
-                    onChange={(e) => handlePresetChange(e.target.value)}
-                    className="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-8 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                  >
-                    <optgroup label="Base">
-                      <option value="Basic Instructions">Basic Instructions</option>
-                    </optgroup>
-                    <optgroup label="Examples">
-                      {PRESET_PROMPTS.filter((p) => p.group === "Examples").map((p) => (
-                        <option key={p.label} value={p.label}>{p.label}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Custom">
-                      <option value="__custom__">Custom prompt</option>
-                    </optgroup>
-                  </select>
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400">
-                    <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                  </svg>
-                </div>
-
-                {/* Always-editable prompt textarea */}
-                <textarea
-                  value={promptText}
-                  onChange={(e) => {
-                    setPromptText(e.target.value);
-                    // Mark as custom as soon as the user types something different
-                    setSelectedPreset("__custom__");
-                  }}
-                  rows={14}
-                  placeholder="Enter your system prompt..."
-                  className="mt-2.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </Field>
-            </>
-          )}
-
-          {/* ── Embed ─────────────────────────────────────────────────── */}
-          {activeTab === "embed" && (
-            <>
-              <Field label="Embed type" hint="How to add this chatbot to your website.">
-                <div className="flex gap-3">
-                  <EmbedCard value="floating" selected={embedType === "floating"} onClick={() => setEmbedType("floating")} icon={<FloatingIcon />} title="Floating widget" description="Chat bubble in the corner" />
-                  <EmbedCard value="iframe" selected={embedType === "iframe"} onClick={() => setEmbedType("iframe")} icon={<IframeIcon />} title="Inline iframe" description="Embed inside page content" />
-                </div>
-              </Field>
-
-              <Field label="Embed code" hint="Copy and paste into your website HTML.">
-                <CodeBlock code={embedType === "floating" ? floatingSnippet : iframeSnippet} />
-              </Field>
-
-              {!websiteUrl && (
-                <div className="rounded-lg border border-blue-100 bg-blue-50 px-3.5 py-3 text-xs leading-5 text-blue-700">
-                  Set your <strong>Website URL</strong> in the Basic tab to automatically populate the embed domain.
-                </div>
-              )}
-            </>
-          )}
-          {/* ── Save button — shown on all tabs except embed ── */}
-          {activeTab !== "embed" && (
-            <div className="pt-2 border-t border-slate-100">
+          {/* Tab bar */}
+          <div className="flex border-b border-slate-100">
+            {TABS.map((tab) => (
               <button
+                key={tab.id}
                 type="button"
-                onClick={() => void handleSave()}
-                disabled={saving || (!isNew && !settings) || (isNew && !agentName.trim())}
-                className="w-full h-8 rounded-lg bg-slate-950 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                onClick={() => setActiveTab(tab.id)}
+                className={[
+                  "relative flex-1 py-2.5 text-xs font-medium transition",
+                  activeTab === tab.id
+                    ? "text-slate-900 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-slate-900"
+                    : "text-slate-400 hover:text-slate-600",
+                ].join(" ")}
               >
-                {saving ? "Saving..." : "Save"}
+                {tab.label}
               </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Right panel: live chat preview ──────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-200">
-
-        {/* Chat header */}
-        <div className="flex items-center justify-between px-4 py-3" style={{ background: primaryColor }}>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
-                <path fillRule="evenodd" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm3.707 6.293a1 1 0 0 0-1.414 0L9 11.586 7.707 10.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4a1 1 0 0 0 0-1.414Z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-white">{displayName || agent?.name || "Agent"}</span>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={resetChat}
-            title="Reset conversation"
-            className="rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
-          >
-            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-              <path d="M4 10a6 6 0 1 0 1.03-3.38M4 10V6m0 4H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        </div>
 
-        {/* Messages */}
-        <div
-          className="flex-1 overflow-y-auto px-4 py-4"
-          style={{
-            backgroundColor: chatBg,
-            backgroundImage: `radial-gradient(circle, ${dotColor} 1px, transparent 1px)`,
-            backgroundSize: "20px 20px",
-          }}
-        >
-          <div className="space-y-3">
-            {messages.map((msg) => {
-              const isUser = msg.role === "user";
-              return (
-                <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className="max-w-[82%] px-4 py-2.5 text-sm leading-6"
-                    style={
-                      isUser
-                        ? { background: primaryColor, color: "#fff", borderRadius: "16px 16px 4px 16px" }
-                        : { background: bubbleBg, color: bubbleText, border: `1px solid ${bubbleBorder}`, borderRadius: "4px 16px 16px 16px" }
-                    }
-                  >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+
+            {/* ── Basic ─────────────────────────────────────────────────── */}
+            {activeTab === "basic" && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      <span className="text-xs font-semibold text-slate-700">Trained</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Last updated just now</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
+                      <p className="text-[10px] font-medium text-slate-400">Data Sources</p>
+                      <p className="mt-0.5 text-lg font-bold text-slate-900">{agent?.document_count ?? 0}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
+                      <p className="text-[10px] font-medium text-slate-400">Conversations</p>
+                      <p className="mt-0.5 text-lg font-bold text-slate-900">{agent?.conversation_count ?? 0}</p>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
 
-            {chatLoading && (
-              <div className="flex justify-start">
-                <div
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5"
-                  style={{ background: bubbleBg, border: `1px solid ${bubbleBorder}`, borderRadius: "4px 16px 16px 16px" }}
+                <Field label="Agent name" hint="The name of this agent shown in the admin panel.">
+                  <input
+                    type="text"
+                    value={agentName}
+                    onChange={(e) => setAgentName(e.target.value)}
+                    placeholder="e.g. Support Agent"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                  />
+                </Field>
+
+                <Field label="Website name" hint="The name of your website or business shown to users.">
+                  <input
+                    type="text"
+                    value={websiteName}
+                    onChange={(e) => setWebsiteName(e.target.value)}
+                    placeholder="e.g. Acme Corp"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                  />
+                </Field>
+
+                <Field label="Website URL" hint="The URL where the chat widget will be embedded.">
+                  <input
+                    type="url"
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    placeholder="https://your-website.com"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                  />
+                </Field>
+
+                {websiteUrl && (
+                  <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                    <div className="border-b border-slate-100 px-3.5 py-2.5">
+                      <p className="text-xs font-medium text-slate-500">Embed preview</p>
+                    </div>
+                    <div className="px-3.5 py-3 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true">
+                          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Z" fill="currentColor" />
+                          <path d="M6.5 5.75A.75.75 0 0 1 7.25 5h1.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75H7.25a.75.75 0 0 1-.75-.75v-4.5Z" fill="currentColor" />
+                        </svg>
+                        <span>Widget will appear on</span>
+                      </div>
+                      <a href={websiteUrl} target="_blank" rel="noreferrer"
+                        className="block truncate text-sm font-medium text-blue-600 hover:underline">
+                        {websiteUrl}
+                      </a>
+                      {websiteName && <p className="text-xs text-slate-400">{websiteName}</p>}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Content ───────────────────────────────────────────────── */}
+            {activeTab === "content" && (
+              <>
+                <Field label="Display name" hint="Shown in the chat widget header.">
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={agent?.name ?? "Agent name"}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                  />
+                </Field>
+
+                <Field label="Welcome message" hint="First message users see when chat opens.">
+                  <textarea
+                    value={welcomeMessage}
+                    onChange={(e) => setWelcomeMessage(e.target.value)}
+                    rows={4}
+                    placeholder="Hi! What can I help you with?"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                  />
+                </Field>
+              </>
+            )}
+
+            {/* ── Style ─────────────────────────────────────────────────── */}
+            {activeTab === "style" && (
+              <>
+                <Field label="Appearance" hint="Light or dark mode for the chat widget.">
+                  <div className="flex gap-3">
+                    <AppearanceCard value="light" selected={appearance === "light"} onClick={() => setAppearance("light")} />
+                    <AppearanceCard value="dark" selected={appearance === "dark"} onClick={() => setAppearance("dark")} />
+                  </div>
+                </Field>
+
+                <Field label="Primary color" hint="Header, user bubbles, send button.">
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 p-0.5" />
+                    <input type="text" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-mono text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white" />
+                    {["#0f172a","#2563eb","#16a34a","#9333ea","#dc2626"].map((c) => (
+                      <ColorSwatch key={c} color={c} active={primaryColor === c} onClick={() => setPrimaryColor(c)} />
+                    ))}
+                  </div>
+                </Field>
+
+                <Field label="Secondary color" hint="Chat background and assistant bubbles.">
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 p-0.5" />
+                    <input type="text" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-mono text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white" />
+                    {["#f8fafc","#f0fdf4","#eff6ff","#faf5ff","#1e293b"].map((c) => (
+                      <ColorSwatch key={c} color={c} active={secondaryColor === c} onClick={() => setSecondaryColor(c)} />
+                    ))}
+                  </div>
+                </Field>
+              </>
+            )}
+
+            {/* ── AI ────────────────────────────────────────────────────── */}
+            {activeTab === "ai" && (
+              <>
+                <Field label="System prompt" hint="Select a starting template, then edit freely below.">
+                  <div className="relative">
+                    <select
+                      value={selectedPreset}
+                      onChange={(e) => handlePresetChange(e.target.value)}
+                      className="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-8 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                    >
+                      <optgroup label="Base">
+                        <option value="Basic Instructions">Basic Instructions</option>
+                      </optgroup>
+                      <optgroup label="Examples">
+                        {PRESET_PROMPTS.filter((p) => p.group === "Examples").map((p) => (
+                          <option key={p.label} value={p.label}>{p.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Custom">
+                        <option value="__custom__">Custom prompt</option>
+                      </optgroup>
+                    </select>
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400">
+                      <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <textarea
+                    value={promptText}
+                    onChange={(e) => {
+                      setPromptText(e.target.value);
+                      setSelectedPreset("__custom__");
+                    }}
+                    rows={14}
+                    placeholder="Enter your system prompt..."
+                    className="mt-2.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white"
+                  />
+                </Field>
+              </>
+            )}
+
+            {/* ── Embed ─────────────────────────────────────────────────── */}
+            {activeTab === "embed" && (
+              <>
+                <Field label="Embed type" hint="How to add this chatbot to your website.">
+                  <div className="flex gap-3">
+                    <EmbedCard value="floating" selected={embedType === "floating"} onClick={() => setEmbedType("floating")} icon={<FloatingIcon />} title="Floating widget" description="Chat bubble in the corner" />
+                    <EmbedCard value="iframe" selected={embedType === "iframe"} onClick={() => setEmbedType("iframe")} icon={<IframeIcon />} title="Inline iframe" description="Embed inside page content" />
+                  </div>
+                </Field>
+
+                <Field label="Embed code" hint="Copy and paste into your website HTML.">
+                  <CodeBlock code={embedType === "floating" ? floatingSnippet : iframeSnippet} />
+                </Field>
+
+                {!websiteUrl && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3.5 py-3 text-xs leading-5 text-blue-700">
+                    Set your <strong>Website URL</strong> in the Basic tab to automatically populate the embed domain.
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Save button ── */}
+            {activeTab !== "embed" && (
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={saving || (!isNew && !settings) || (isNew && !agentName.trim())}
+                  className="w-full h-8 rounded-lg bg-slate-950 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
-                </div>
+                  {saving ? "Saving..." : "Save"}
+                </button>
               </div>
             )}
-            <div ref={messagesEndRef} />
           </div>
         </div>
 
-        {/* Powered by */}
+        {/* ── Right panel: widget-style chat preview ───────────────────────── */}
         <div
-          className="flex justify-center py-1.5"
-          style={{ background: isDark ? "#0f172a" : "#fff", borderTop: `1px solid ${isDark ? "#1e293b" : "#f1f5f9"}` }}
+          className="flex flex-1 items-end justify-end overflow-hidden pb-6 pr-6"
+          style={{
+            position: "relative",
+            background: isDark ? "#1e293b" : "#f1f5f9",
+            backgroundImage: `radial-gradient(circle, ${isDark ? "rgba(148,163,184,0.08)" : "rgba(203,213,225,0.4)"} 1px, transparent 1px)`,
+            backgroundSize: "24px 24px",
+            borderRadius: "12px",
+          }}
         >
-          <p className="text-[10px]" style={{ color: isDark ? "#475569" : "#94a3b8" }}>Powered by your RAG agent</p>
-        </div>
-
-        {/* Input */}
-        <div
-          className="px-4 py-3"
-          style={{ background: isDark ? "#0f172a" : "#fff", borderTop: `1px solid ${isDark ? "#1e293b" : "#e2e8f0"}` }}
-        >
+          {/* Widget window */}
           <div
-            className="flex items-center gap-2 rounded-full px-4 py-2"
-            style={{ border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, background: isDark ? "#1e293b" : "#f8fafc" }}
+            className="flex flex-col overflow-hidden shadow-2xl"
+            style={{
+              width: "370px",
+              height: "560px",
+              borderRadius: "16px",
+              border: "1px solid #e2e8f0",
+            }}
           >
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
-              placeholder="Message..."
-              className="flex-1 border-0 bg-transparent text-sm outline-none"
-              style={{ color: isDark ? "#f1f5f9" : "#1e293b" }}
-            />
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={chatLoading || !chatInput.trim()}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ background: primaryColor }}
+            {/* Chat header */}
+            <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ background: primaryColor }}>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
+                    <path fillRule="evenodd" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm3.707 6.293a1 1 0 0 0-1.414 0L9 11.586 7.707 10.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4a1 1 0 0 0 0-1.414Z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-sm font-semibold text-white">{displayName || agent?.name || "Agent"}</span>
+              </div>
+              <button
+                type="button"
+                onClick={resetChat}
+                title="Reset conversation"
+                className="rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
+              >
+                <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                  <path d="M4 10a6 6 0 1 0 1.03-3.38M4 10V6m0 4H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div
+              className="flex-1 overflow-y-auto px-4 py-4"
+              style={{
+                backgroundColor: chatBg,
+                backgroundImage: `radial-gradient(circle, ${dotColor} 1px, transparent 1px)`,
+                backgroundSize: "20px 20px",
+              }}
             >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
-                <path fillRule="evenodd" d="M8 2a.75.75 0 0 1 .75.75v8.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.22 3.22V2.75A.75.75 0 0 1 8 2Z" clipRule="evenodd" transform="rotate(-90 8 8)" />
-              </svg>
-            </button>
+              <div className="space-y-3">
+                {messages.map((msg) => {
+                  const isUser = msg.role === "user";
+                  return (
+                    <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className="max-w-[82%] px-4 py-2.5 text-sm leading-6"
+                        style={
+                          isUser
+                            ? { background: primaryColor, color: "#fff", borderRadius: "16px 16px 4px 16px" }
+                            : { background: bubbleBg, color: bubbleText, border: `1px solid ${bubbleBorder}`, borderRadius: "4px 16px 16px 16px" }
+                        }
+                      >
+                        <p
+                          className="whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5"
+                      style={{ background: bubbleBg, border: `1px solid ${bubbleBorder}`, borderRadius: "4px 16px 16px 16px" }}
+                    >
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Powered by */}
+            <div
+              className="flex justify-center py-1.5 flex-shrink-0"
+              style={{ background: isDark ? "#0f172a" : "#fff", borderTop: `1px solid ${isDark ? "#1e293b" : "#f1f5f9"}` }}
+            >
+              <p className="text-[10px]" style={{ color: isDark ? "#475569" : "#94a3b8" }}>Powered by your RAG agent</p>
+            </div>
+
+            {/* Input */}
+            <div
+              className="px-4 py-3 flex-shrink-0"
+              style={{ background: isDark ? "#0f172a" : "#fff", borderTop: `1px solid ${isDark ? "#1e293b" : "#e2e8f0"}` }}
+            >
+              <div
+                className="flex items-center gap-2 rounded-full px-4 py-2"
+                style={{ border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, background: isDark ? "#1e293b" : "#f8fafc" }}
+              >
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
+                  placeholder="Message..."
+                  className="flex-1 border-0 bg-transparent text-sm outline-none"
+                  style={{ color: isDark ? "#f1f5f9" : "#1e293b" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSend()}
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ background: primaryColor }}
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                    <path fillRule="evenodd" d="M8 2a.75.75 0 0 1 .75.75v8.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.22 3.22V2.75A.75.75 0 0 1 8 2Z" clipRule="evenodd" transform="rotate(-90 8 8)" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating bubble — always visible */}
+          <div
+            className="absolute bottom-6 right-6 flex items-center justify-center rounded-full shadow-lg"
+            style={{ width: "52px", height: "52px", background: primaryColor, cursor: "default" }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: "24px", height: "24px" }}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
           </div>
         </div>
+
       </div>
-      </div>  
     </div>
   );
 }
