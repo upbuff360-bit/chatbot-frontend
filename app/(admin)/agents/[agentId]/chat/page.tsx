@@ -601,15 +601,16 @@ export default function PlaygroundPage() {
 
         {/* ── Right panel: widget-style chat preview ───────────────────────── */}
         <div
-          className="flex flex-1 items-end justify-end overflow-hidden pb-6 pr-6"
+          className="flex flex-1 items-center justify-center overflow-hidden"
           style={{
-            position: "relative",
             background: isDark ? "#1e293b" : "#f1f5f9",
             backgroundImage: `radial-gradient(circle, ${isDark ? "rgba(148,163,184,0.08)" : "rgba(203,213,225,0.4)"} 1px, transparent 1px)`,
             backgroundSize: "24px 24px",
             borderRadius: "12px",
           }}
         >
+          {/* Widget window + bubble wrapper */}
+          <div className="flex flex-col items-end">
           {/* Widget window */}
           <div
             className="flex flex-col overflow-hidden shadow-2xl"
@@ -727,17 +728,19 @@ export default function PlaygroundPage() {
                 </button>
               </div>
             </div>
-          </div>
 
-          {/* Floating bubble — always visible */}
+          </div>{/* end widget window */}
+
+          {/* Floating bubble — below widget, aligned right */}
           <div
-            className="absolute bottom-6 right-6 flex items-center justify-center rounded-full shadow-lg"
+            className="flex items-center justify-center rounded-full shadow-lg mt-3"
             style={{ width: "52px", height: "52px", background: primaryColor, cursor: "default" }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: "24px", height: "24px" }}>
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </div>
+          </div>{/* end widget+bubble wrapper */}
         </div>
 
       </div>
