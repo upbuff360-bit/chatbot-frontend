@@ -408,13 +408,24 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
           <ul className="divide-y divide-slate-100">
             {visibleDocuments.map((document) => (
               <SourceRow
-                key={document.id}
-                agentId={agentId}
-                document={document}
-                onUpdate={handleUpdateDocument}
-                onDelete={handleDeleteDocument}
-                onRefresh={refreshKnowledgeState}
-              />
+                  key={document.id}
+                  agentId={agentId}
+                  document={document}
+                  onUpdate={handleUpdateDocument}
+                  onDelete={handleDeleteDocument}
+                  onRefresh={refreshKnowledgeState}
+                  onRecrawl={async (url: string) => {
+                    setCrawling(true);
+                    try {
+                      const job = await crawlWebsite(agentId, url);
+                      setCrawlJob(job);
+                      await refreshKnowledgeState();
+                    } catch (error) {
+                      setCrawling(false);
+                      addToast({ title: "Re-crawl failed", description: error instanceof Error ? error.message : "Please try again.", variant: "error" });
+                    }
+                  }}
+                />
             ))}
           </ul>
         ) : (
@@ -434,12 +445,14 @@ function SourceRow({
   onUpdate,
   onDelete,
   onRefresh,
+  onRecrawl,
 }: {
   agentId: string;
   document: KnowledgeDocument;
   onUpdate: (id: string, payload: DocumentUpdatePayload) => Promise<void>;
   onDelete: (id: string, label: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  onRecrawl?: (url: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [primaryValue, setPrimaryValue] = useState(document.file_name);
@@ -622,7 +635,7 @@ function SourceRow({
                 >
                   Edit
                 </button>
-                {document.source_type === "website" && (
+                {document.source_type === "website" && onRecrawl && (
                   <button
                     type="button"
                     onClick={async () => {
@@ -630,7 +643,7 @@ function SourceRow({
                       if (!window.confirm(`Re-crawl "${document.file_name}"?`)) return;
                       try {
                         await onDelete(document.id, document.file_name);
-                        await onRefresh();
+                        await onRecrawl(document.source_url ?? document.file_name);
                       } catch {}
                     }}
                     className="flex w-full rounded-md px-3 py-2 text-left text-xs font-medium text-blue-600 transition hover:bg-blue-50"
