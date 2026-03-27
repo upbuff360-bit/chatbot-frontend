@@ -8,6 +8,8 @@ import { useAdmin } from "@/components/AdminProvider";
 import { resolveAgentRoute } from "@/lib/agent-routes";
 
 const SECONDARY_ITEMS_DEF = [
+  { 
+    label: "Playground", href: "chat", resource: "agents" },
   {
     label: "Knowledge",
     href: "knowledge",
@@ -19,7 +21,6 @@ const SECONDARY_ITEMS_DEF = [
       { label: "Q&A", href: "knowledge/qa" },
     ],
   },
-  { label: "Playground", href: "chat", resource: "agents" },
   { label: "Conversations", href: "conversations", resource: "agents" },
   { label: "Analytics", href: "analytics", resource: "agents" },
 ];
