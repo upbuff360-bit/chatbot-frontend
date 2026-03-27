@@ -695,7 +695,7 @@ export default function PlaygroundPage() {
               className="flex justify-center py-1.5 flex-shrink-0"
               style={{ background: isDark ? "#0f172a" : "#fff", borderTop: `1px solid ${isDark ? "#1e293b" : "#f1f5f9"}` }}
             >
-              <p className="text-[10px]" style={{ color: isDark ? "#475569" : "#94a3b8" }}>Powered by your RAG agent</p>
+              <p className="text-[10px]" style={{ color: isDark ? "#475569" : "#94a3b8" }}>Powered by <a href = "https://upbuff.com/" target="blank"><b>UpBuff AI</b></a></p>
             </div>
 
             {/* Input */}
