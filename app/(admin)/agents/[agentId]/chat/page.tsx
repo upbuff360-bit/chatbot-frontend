@@ -600,8 +600,8 @@ export default function PlaygroundPage() {
         </div>
 
         {/* ── Right panel: widget-style chat preview ───────────────────────── */}
-        <div
-          className="flex flex-1 items-center justify-center overflow-hidden"
+         <div
+          className="relative flex-1 overflow-hidden"
           style={{
             background: isDark ? "#1e293b" : "#f1f5f9",
             backgroundImage: `radial-gradient(circle, ${isDark ? "rgba(148,163,184,0.08)" : "rgba(203,213,225,0.4)"} 1px, transparent 1px)`,
@@ -610,7 +610,7 @@ export default function PlaygroundPage() {
           }}
         >
           {/* Widget window + bubble wrapper */}
-          <div className="flex flex-col items-end">
+        <div className="absolute flex flex-col items-end" style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
           {/* Widget window */}
           <div
             className="flex flex-col overflow-hidden shadow-2xl"
