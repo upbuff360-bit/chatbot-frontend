@@ -610,8 +610,8 @@ function SourceRow({
                 <path d="M8 3.25a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm0 6a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm0 6a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z" />
               </svg>
             </button>
-            {actionsOpen && (
-              <div className="absolute right-0 top-9 z-10 w-32 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+           {actionsOpen && (
+              <div className="absolute right-0 top-9 z-10 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
                 <button
                   type="button"
                   onClick={() => {
@@ -622,6 +622,22 @@ function SourceRow({
                 >
                   Edit
                 </button>
+                {document.source_type === "website" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setActionsOpen(false);
+                      if (!window.confirm(`Re-crawl "${document.file_name}"?`)) return;
+                      try {
+                        await onDelete(document.id, document.file_name);
+                        await onRefresh();
+                      } catch {}
+                    }}
+                    className="flex w-full rounded-md px-3 py-2 text-left text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                  >
+                    Re-crawl
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleDelete()}
