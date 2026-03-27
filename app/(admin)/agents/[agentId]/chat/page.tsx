@@ -616,7 +616,7 @@ export default function PlaygroundPage() {
             className="flex flex-col overflow-hidden shadow-2xl"
             style={{
               width: "370px",
-              height: "560px",
+              height: "480px",
               borderRadius: "16px",
               border: "1px solid #e2e8f0",
             }}
