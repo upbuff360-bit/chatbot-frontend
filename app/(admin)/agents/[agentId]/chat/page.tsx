@@ -610,7 +610,7 @@ export default function PlaygroundPage() {
           }}
         >
           {/* Widget window + bubble wrapper */}
-        <div className="absolute flex flex-col items-end" style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
+        <div className="absolute flex flex-col items-end" style={{ top: "50%", left: "50%", transform: "translate(-50%, -55%)" }}>
           {/* Widget window */}
           <div
             className="flex flex-col overflow-hidden shadow-2xl"
