@@ -133,6 +133,7 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
       } catch (error) {
         window.clearInterval(interval);
         setCrawling(false);
+        setCrawlJob((prev) => prev ? { ...prev, status: "failed" } : null);
         addToast({ title: "Unable to track crawl", description: error instanceof Error ? error.message : "Please try again.", variant: "error" });
       }
     }, 1200);
@@ -755,6 +756,7 @@ function WebsitePagesManager({
       } catch (error) {
         window.clearInterval(interval);
         setSaving(false);
+        setPageCrawlJob((prev) => prev ? { ...prev, status: "failed" } : null);
         addToast({
           title: "Unable to track page crawl",
           description: error instanceof Error ? error.message : "Please try again.",
