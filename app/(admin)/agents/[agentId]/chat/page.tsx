@@ -381,11 +381,13 @@ export default function PlaygroundPage() {
     if (isNew) return;
     const trimmed = chatInput.trim();
     if (!trimmed || chatLoading) return;
+    // Capture last bot message BEFORE adding the new user message to state
+    const lastBotMsg = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: trimmed }]);
     setChatInput("");
     setChatLoading(true);
     try {
-      const data = await sendChatMessage({ agent_id: agentId, question: trimmed, conversation_id: conversationId });
+      const data = await sendChatMessage({ agent_id: agentId, question: trimmed, conversation_id: conversationId, last_bot_message: lastBotMsg });
       setConversationId(data.conversation_id);
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: data.answer?.trim() || "I don't have enough information to answer that." }]);
       await Promise.all([refreshAgents(), refreshSummary()]);
@@ -677,8 +679,7 @@ export default function PlaygroundPage() {
                     <div className="flex flex-col gap-1.5 mb-3">
                     <div
   className="flex border-b border-slate-100 mb-3 overflow-x-auto"
-  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
->
+  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }} >
                       {PLATFORM_TABS.map((pt) => (
                         <button
                           key={pt.id}

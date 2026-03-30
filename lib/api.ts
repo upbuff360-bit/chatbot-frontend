@@ -36,13 +36,11 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     ...fetchInit,
     headers: {
       ...(fetchInit?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      // Attach JWT automatically on every request if available (skipped for public routes)
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...fetchInit?.headers,
     },
   });
 
-  // Token expired or invalid — clear session and redirect to login
   if (response.status === 401) {
     tokenStorage.clear();
     if (typeof window !== "undefined") {
@@ -330,10 +328,16 @@ export function sendChatMessage(payload: {
   agent_id: string;
   question: string;
   conversation_id?: string | null;
+  last_bot_message?: string;
 }) {
   return request<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      agent_id: payload.agent_id,
+      question: payload.question,
+      conversation_id: payload.conversation_id,
+      last_bot_message: payload.last_bot_message ?? "",
+    }),
   });
 }
 
