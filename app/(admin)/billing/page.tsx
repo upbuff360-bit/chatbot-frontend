@@ -65,7 +65,7 @@ function RowMenu({ record, canManageBilling, onAction }: {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 bottom-8 z-50 w-44 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute right-0 top-8 z-50 w-44 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {/* Renew */}
           <button type="button" onClick={() => { setOpen(false); onAction("renew", record); }}
             className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition">
@@ -253,7 +253,7 @@ export default function BillingPage() {
     try {
       const url = isSuperAdmin ? `${BASE}/billing/all` : `${BASE}/billing/me`;
       const [records, plans] = await Promise.all([
-        cachedFetch(billingCacheKey, () => fetch(url, { headers: authHeaders() }).then(r => r.ok ? r.json() : []), 60_000),
+        cachedFetch(billingCacheKey, () => fetch(url, { headers: authHeaders(), cache: "no-store" }).then(r => r.ok ? r.json() : []), 60_000),
         canReadPlans
           ? cachedFetch("plans", () => fetch(`${BASE}/plans`, { headers: authHeaders() }).then(r => r.ok ? r.json() : []), 60_000)
           : Promise.resolve([]),
@@ -308,8 +308,18 @@ export default function BillingPage() {
       method: "PATCH", headers: authHeaders(),
     });
     if (res.ok) {
-      showToast(`Billing ${action}d successfully.`);
+      const pastTense = action === "resume" ? "resumed" : action === "stop" ? "stopped" : action + "d";
+      showToast(`Billing ${pastTense} successfully.`);
+      // Optimistically update UI immediately without waiting for refetch
+      const newStatus = action === "pause" ? "paused" : action === "stop" ? "stopped" : "active";
+      setRecords(prev => prev.map(r =>
+        r.user_id === record.user_id ? { ...r, billing_status: newStatus as BillingRecord["billing_status"] } : r
+      ));
+      // Then refetch to sync with server
       fetchData(true);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err?.detail ?? `Failed to ${action} billing.`);
     }
   };
 

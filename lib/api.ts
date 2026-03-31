@@ -307,6 +307,13 @@ export function crawlWebsite(agentId: string, url: string) {
   });
 }
 
+export function crawlSingleUrl(agentId: string, url: string) {
+  return request<CrawlJob>("/crawl-single-url", {
+    method: "POST",
+    body: JSON.stringify({ agent_id: agentId, url }),
+  });
+}
+
 export function getWebsiteCrawlJob(jobId: string) {
   return request<CrawlJob>(`/crawl-website/${jobId}`);
 }

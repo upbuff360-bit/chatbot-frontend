@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 import FileUpload from "@/components/FileUpload";
@@ -10,6 +10,7 @@ import {
   createTextSnippet,
   crawlWebsitePage,
   crawlWebsite,
+  crawlSingleUrl,
   deleteDocument,
   deleteWebsitePage,
   getDocuments,
@@ -87,6 +88,21 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
   const [websiteUrlError, setWebsiteUrlError] = useState("");
   const [crawling, setCrawling] = useState(false);
   const [crawlJob, setCrawlJob] = useState<CrawlJob | null>(null);
+  const [crawlMode, setCrawlMode] = useState<"whole" | "single">("whole");
+  const [showCrawlDropdown, setShowCrawlDropdown] = useState(false);
+  const crawlDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showCrawlDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (crawlDropdownRef.current && !crawlDropdownRef.current.contains(e.target as Node)) {
+        setShowCrawlDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showCrawlDropdown]);
 
   const [snippetTitle, setSnippetTitle] = useState("");
   const [snippetContent, setSnippetContent] = useState("");
@@ -179,6 +195,30 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
     }
   };
 
+  const handleSinglePageSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextUrl = websiteUrl.trim();
+    if (!nextUrl) return;
+    if (!isValidWebsitePageUrl(nextUrl)) {
+      setWebsiteUrlError("Please enter a valid page URL.");
+      return;
+    }
+    setWebsiteUrlError("");
+    setCrawling(true);
+    try {
+      // crawlSingleUrl hits /crawl-single-url which crawls ONLY this URL —
+      // no link discovery, no BFS. Uses Playwright for JS-heavy pages.
+      const job = await crawlSingleUrl(agentId, nextUrl);
+      setCrawlJob(job);
+      setWebsiteUrl("");
+      setShowForm(false);
+      await refreshKnowledgeState();
+    } catch (error) {
+      setCrawling(false);
+      addToast({ title: "Crawl failed", description: error instanceof Error ? error.message : "Please try again.", variant: "error" });
+    }
+  };
+
   const handleTextSnippetSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!snippetTitle.trim() || !snippetContent.trim() || snippetSaving) return;
@@ -240,16 +280,85 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
             {loading ? "Loading..." : `${visibleDocuments.length} source${visibleDocuments.length !== 1 ? "s" : ""}`}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="flex h-8 items-center gap-1.5 rounded-lg bg-slate-950 px-3.5 text-xs font-semibold text-white transition hover:bg-slate-800"
-        >
-          <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
-            <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-          </svg>
-          {sourceMeta.addLabel}
-        </button>
+        {sourceType === "website" ? (
+          /* Split button: main action + dropdown for crawl mode */
+          <div className="relative flex" ref={crawlDropdownRef}>
+            <button
+              type="button"
+              onClick={() => { setShowForm(true); setShowCrawlDropdown(false); }}
+              className="flex h-8 items-center gap-1.5 rounded-l-lg bg-slate-950 px-3.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+              </svg>
+              {crawlMode === "whole" ? "Whole website crawl" : "Single page crawl"}
+            </button>
+            {/* Chevron toggle */}
+            <button
+              type="button"
+              onClick={() => setShowCrawlDropdown((v) => !v)}
+              className="flex h-8 w-7 items-center justify-center rounded-r-lg border-l border-slate-700 bg-slate-950 text-white transition hover:bg-slate-800"
+              aria-label="Select crawl mode"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3" aria-hidden="true">
+                <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {/* Dropdown menu */}
+            {showCrawlDropdown && (
+              <div className="absolute right-0 top-9 z-20 w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => { setCrawlMode("whole"); setShowCrawlDropdown(false); setShowForm(true); }}
+                  className={`flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-slate-50 ${crawlMode === "whole" ? "text-slate-900" : "text-slate-600"}`}
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true">
+                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Z" />
+                    <path d="M8 3.5c-.69 0-1.5.504-1.5 1.75v.5h3v-.5C9.5 4.004 8.69 3.5 8 3.5ZM5.5 5.75C5.5 3.996 6.81 2 8 2s2.5 1.996 2.5 3.75v.5h.25a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H5.5v-.5Z" />
+                  </svg>
+                  <div>
+                    <div className="text-xs font-semibold">Whole website crawl</div>
+                    <div className="text-xs text-slate-400">Crawl all pages on the domain</div>
+                  </div>
+                  {crawlMode === "whole" && (
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-900" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCrawlMode("single"); setShowCrawlDropdown(false); setShowForm(true); }}
+                  className={`flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-slate-50 ${crawlMode === "single" ? "text-slate-900" : "text-slate-600"}`}
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true">
+                    <path d="M2 2.75A.75.75 0 0 1 2.75 2h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 2.75ZM2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Zm0 5.25a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Z" />
+                  </svg>
+                  <div>
+                    <div className="text-xs font-semibold">Single page crawl</div>
+                    <div className="text-xs text-slate-400">Crawl one specific URL</div>
+                  </div>
+                  {crawlMode === "single" && (
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-900" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="flex h-8 items-center gap-1.5 rounded-lg bg-slate-950 px-3.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+              <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+            </svg>
+            {sourceMeta.addLabel}
+          </button>
+        )}
       </div>
 
       {/* Add form — collapsible */}
@@ -267,9 +376,25 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
           )}
 
           {sourceType === "website" && (
-            <form className="space-y-3" onSubmit={handleWebsiteSubmit}>
+            <form
+              className="space-y-3"
+              onSubmit={crawlMode === "single" ? handleSinglePageSubmit : handleWebsiteSubmit}
+            >
+              {/* Mode badge */}
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  crawlMode === "whole"
+                    ? "bg-slate-100 text-slate-700"
+                    : "bg-blue-50 text-blue-700"
+                }`}>
+                  {crawlMode === "whole" ? "Whole website crawl" : "Single page crawl"}
+                </span>
+              </div>
+
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-700">Website URL or sitemap</label>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                  {crawlMode === "whole" ? "Website URL or sitemap" : "Page URL"}
+                </label>
                 <input
                   type="url"
                   value={websiteUrl}
@@ -277,14 +402,18 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
                     setWebsiteUrl(e.target.value);
                     if (websiteUrlError) setWebsiteUrlError("");
                   }}
-                  placeholder="https://example.com"
+                  placeholder={crawlMode === "whole" ? "https://example.com" : "https://example.com/specific-page"}
                   className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
                 />
                 {websiteUrlError && (
                   <p className="mt-1.5 text-xs text-rose-500">{websiteUrlError}</p>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Crawler stays on the same domain and stores readable text only.</p>
+              <p className="text-xs text-slate-500">
+                {crawlMode === "whole"
+                  ? "Crawler discovers all pages on the domain including JS-rendered pages."
+                  : "Fetches and indexes only this specific page, including JS-rendered content."}
+              </p>
 
               {crawlInProgress && crawlJob && (
                 <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
@@ -301,7 +430,7 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowForm(false)} className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={crawling || !websiteUrl.trim()} className="h-8 rounded-lg bg-slate-950 px-4 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300">
-                  {crawling ? "Crawling..." : "Crawl"}
+                  {crawling ? "Crawling..." : crawlMode === "whole" ? "Crawl website" : "Crawl page"}
                 </button>
               </div>
             </form>

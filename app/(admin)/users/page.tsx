@@ -387,7 +387,15 @@ export default function UsersPage() {
                         <span className="text-[10px] text-slate-400 italic">🔒 Protected</span>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => { setAssigningPlan(u); setSelectedPlanId(u.subscription?.plan_name ? "" : ""); }}
+                          <button type="button" onClick={() => {
+                              setAssigningPlan(u);
+                              // Prepopulate with current plan when changing —
+                              // match plan_name against availablePlans to get the id
+                              const currentPlan = u.subscription
+                                ? availablePlans.find(p => p.name === u.subscription!.plan_name)
+                                : null;
+                              setSelectedPlanId(currentPlan?.id ?? "");
+                            }}
                             disabled={!canWriteUsers || !canReadPlans}
                             className="h-7 px-3 rounded-lg border border-blue-100 text-xs font-medium text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
                             {u.subscription ? "Change Plan" : "Assign Plan"}
@@ -523,8 +531,12 @@ export default function UsersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
           onClick={(e) => { if (e.target === e.currentTarget) setAssigningPlan(null); }}>
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-            <h2 className="text-base font-semibold text-slate-900 mb-1">Assign Subscription Plan</h2>
-            <p className="text-xs text-slate-400 mb-4">Assigning to <strong>{assigningPlan.email}</strong></p>
+            <h2 className="text-base font-semibold text-slate-900 mb-1">
+              {assigningPlan.subscription ? "Change Subscription Plan" : "Assign Subscription Plan"}
+            </h2>
+            <p className="text-xs text-slate-400 mb-4">
+              {assigningPlan.subscription ? "Changing plan for" : "Assigning to"} <strong>{assigningPlan.email}</strong>
+            </p>
 
             {availablePlans.length === 0 ? (
               <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-700">
