@@ -90,6 +90,8 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
   const [crawlJob, setCrawlJob] = useState<CrawlJob | null>(null);
   const [crawlMode, setCrawlMode] = useState<"whole" | "single">("whole");
   const [showCrawlDropdown, setShowCrawlDropdown] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingLabel, setDeletingLabel] = useState("");
   const crawlDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -262,9 +264,16 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
   };
 
   const handleDeleteDocument = async (documentId: string, label: string) => {
-    await deleteDocument(agentId, documentId);
-    await refreshKnowledgeState();
-    addToast({ title: "Deleted", description: `${label} removed.` });
+    setIsDeleting(true);
+    setDeletingLabel(label);
+    try {
+      await deleteDocument(agentId, documentId);
+      await refreshKnowledgeState();
+      addToast({ title: "Deleted", description: `${label} removed.` });
+    } finally {
+      setIsDeleting(false);
+      setDeletingLabel("");
+    }
   };
 
   const crawlProgressMax = Math.max(crawlJob?.discovered_pages ?? 0, crawlJob?.indexed_pages ?? 0, 1);
@@ -272,7 +281,21 @@ export default function KnowledgeWorkspace({ sourceType }: KnowledgeWorkspacePro
   const crawlInProgress = sourceType === "website" && crawlJob !== null && crawlJob.status !== "completed" && crawlJob.status !== "failed";
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      {/* Full page delete overlay */}
+      {isDeleting && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-2xl bg-white px-10 py-8 shadow-2xl">
+            <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-900" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-900">Deleting...</p>
+              {deletingLabel && (
+                <p className="mt-1 max-w-[220px] truncate text-xs text-slate-400">{deletingLabel}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -1086,7 +1109,19 @@ function WebsitePagesManager({
         </form>
       )}
 
-      <div className="space-y-2">
+      <div className="relative space-y-2">
+        {/* Full page delete overlay */}
+        {deletingIndex !== null && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4 rounded-2xl bg-white px-10 py-8 shadow-2xl">
+              <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-900" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-900">Deleting page...</p>
+                <p className="mt-1 text-xs text-slate-400">Please wait</p>
+              </div>
+            </div>
+          </div>
+        )}
         {loading ? (
           <p className="text-xs text-slate-400">Loading crawled pages...</p>
         ) : pages.length ? (
