@@ -15,7 +15,7 @@ const SECONDARY_ITEMS_DEF = [
     href: "knowledge",
     resource: "agents",
     children: [
-      { label: "PDF", href: "knowledge/pdfs" },
+      { label: "Files", href: "knowledge/pdfs" },
       { label: "Websites", href: "knowledge/websites" },
       { label: "Text snippets", href: "knowledge/text-snippets" },
       { label: "Q&A", href: "knowledge/qa" },
