@@ -258,7 +258,7 @@ function PlanModal({
                   <label className="mb-1 block text-xs font-semibold text-emerald-800">Selling Price (₹) <span className="text-red-400">*</span></label>
                   <p className="text-[10px] text-emerald-600 mb-2">Price is auto-calculated based on usage. You can adjust it.</p>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-emerald-700">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-emerald-700">$</span> 
                     <input type="number" min={0.01} step={0.01}
                       value={customPrice || ""}
                       onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
