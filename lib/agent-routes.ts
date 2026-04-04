@@ -17,6 +17,9 @@ export function resolveAgentRoute(pathname: string, agentId: string) {
   if (pathname.includes("/conversations")) {
     return `/agents/${agentId}/conversations`;
   }
+  if (pathname.includes("/leads")) {
+    return `/agents/${agentId}/leads`;
+  }
   if (pathname.includes("/analytics")) {
     return `/agents/${agentId}/analytics`;
   }

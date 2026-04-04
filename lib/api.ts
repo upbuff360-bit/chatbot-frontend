@@ -10,8 +10,10 @@ import {
   DashboardSummary,
   InvitationPreview,
   KnowledgeDocument,
+  Lead,
   MessageResponse,
   PasswordResetPreview,
+  PublicWidgetSettings,
   ResolvedPermissions,
   UserSearchResult,
   WebsitePage,
@@ -330,6 +332,10 @@ export function updateSettings(agentId: string, settings: AgentSettings) {
   });
 }
 
+export function getPublicWidgetSettings(agentId: string) {
+  return request<PublicWidgetSettings>(`/widget/settings/${agentId}`, { skipAuth: true });
+}
+
 // ── Chat ──────────────────────────────────────────────────────────────────────
 export function sendChatMessage(payload: {
   agent_id: string;
@@ -360,4 +366,8 @@ export function getConversation(agentId: string, conversationId: string) {
 export async function getConversationSummary(agentId: string, conversationId: string) {
   const payload = await request<{ summary?: string | null }>(`/agents/${agentId}/conversations/${conversationId}/summary`);
   return payload.summary ?? null;
+}
+
+export function getLeads(agentId: string) {
+  return request<Lead[]>(`/agents/${agentId}/leads`);
 }

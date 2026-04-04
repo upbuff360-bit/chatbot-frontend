@@ -13,6 +13,13 @@ type ChatWidgetProps = {
   onConversationUpdated?: () => Promise<void> | void;
 };
 
+const STARTER_SUGGESTIONS = [
+  "What do you offer?",
+  "What are your services?",
+  "What are your products?",
+  "Which solution would you recommend?",
+];
+
 export default function ChatWidget({ agentId, welcomeMessage, onConversationUpdated }: ChatWidgetProps) {
   const { addToast, refreshAgents, refreshSummary } = useAdmin();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -31,14 +38,15 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
         id: "welcome-message",
         role: "assistant",
         content: welcomeMessage,
+        suggestions: STARTER_SUGGESTIONS,
       },
     ]);
     setConversationId(null);
     setInput("");
   }, [agentId, welcomeMessage]);
 
-  const handleSubmit = async () => {
-    const trimmed = input.trim();
+  const handleSubmit = async (prefilled?: string) => {
+    const trimmed = (prefilled ?? input).trim();
     if (!trimmed || loading) {
       return;
     }
@@ -67,6 +75,7 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
           id: crypto.randomUUID(),
           role: "assistant",
           content: answer,
+          suggestions: data.suggestions || STARTER_SUGGESTIONS,
         },
       ]);
       await Promise.all([refreshAgents(), refreshSummary(), onConversationUpdated?.()]);
@@ -77,6 +86,7 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
           id: crypto.randomUUID(),
           role: "assistant",
           content: "I'm having trouble reaching the backend right now. Please try again in a moment.",
+          suggestions: STARTER_SUGGESTIONS,
         },
       ]);
       addToast({
@@ -103,6 +113,8 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
             role={message.role}
             content={message.content}
             timestamp={message.timestamp}
+            suggestions={message.suggestions}
+            onSuggestionClick={(suggestion) => void handleSubmit(suggestion)}
           />
         ))}
 

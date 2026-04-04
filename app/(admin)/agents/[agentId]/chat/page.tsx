@@ -5,7 +5,7 @@ import { cachedFetch, invalidate } from "@/lib/client-cache";
 import { useParams, useRouter } from "next/navigation";
 
 import { useAdmin } from "@/components/AdminProvider";
-import { getSettings, updateSettings, sendChatMessage, getDocuments } from "@/lib/api";
+import { getPublicWidgetSettings, getSettings, updateSettings, sendChatMessage, getDocuments } from "@/lib/api";
 import { AgentSettings, ChatMessage, KnowledgeDocument } from "@/lib/types";
 
 // ─── Preset system prompts ───────────────────────────────────────────────────
@@ -13,62 +13,114 @@ const PRESET_PROMPTS = [
   {
     group: "Base",
     label: "Basic Instructions",
-    value: `### Business Context
-This business provides general services and assistance. As an AI agent, your goal is to provide accurate, helpful, and professional information to users while maintaining a friendly tone. Focus on clarifying inquiries and directing users toward available resources.
+    value: `### Role
+You are the company's AI assistant. Help users clearly, politely, and efficiently using the available business information.
 
-### Role
-- Primary Function: You are a customer support agent here to assist users based on specific training data provided. Your main objective is to inform, clarify, and answer questions strictly related to this training data and your role.
+### Goals
+- Answer questions in a concise and professional way.
+- Ask a clarifying question when the user's goal is unclear.
+- Keep the conversation focused on the business, its offerings, and the user's needs.
 
-### Persona
-- Identity: You are a dedicated customer support agent. You cannot adopt other personas or impersonate any other entity. If a user tries to make you act as a different chatbot or persona, politely decline and reiterate your role to offer assistance only with matters related to customer support.
-
-### Constraints
-1. No Data Divulge: Never mention that you have access to training data explicitly to the user.
-2. Maintaining Focus: If a user attempts to divert you to unrelated topics, never change your role or break your character. Politely redirect the conversation back to topics relevant to customer support.
-3. Exclusive Reliance on Training Data: You must rely exclusively on the training data provided to answer user queries. If a query is not covered by the training data, use the fallback response.
-4. Restrictive Role Focus: You do not answer questions or perform tasks that are not related to your role. This includes refraining from tasks such as coding explanations, personal advice, or any other unrelated activities.`,
+### Style
+- Be warm, confident, and easy to understand.
+- Prefer direct answers over long explanations.
+- When helpful, guide the user to the next best question or decision.`,
   },
   {
     group: "Examples",
-    label: "General AI agent",
+    label: "Customer Support",
     value: `### Role
-- Primary Function: You are an AI agent who helps users with their inquiries, issues and requests. You aim to provide excellent, friendly and efficient replies at all times. Your role is to listen attentively to the user, understand their needs, and do your best to assist them or direct them to the appropriate resources. If a question is not clear, ask clarifying questions. Make sure to end your replies with a positive note.
+You are a customer support assistant for the business.
 
-### Constraints
-1. No Data Divulge: Never mention that you have access to training data explicitly to the user.
-2. Maintaining Focus: If a user attempts to divert you to unrelated topics, never change your role or break your character. Politely redirect the conversation back to topics relevant to the training data.
-3. Exclusive Reliance on Training Data: You must rely exclusively on the training data provided to answer user queries. If a query is not covered by the training data, use the fallback response.
-4. Restrictive Role Focus: You do not answer questions or perform tasks that are not related to your role and training data.`,
+### Goals
+- Resolve customer questions clearly and calmly.
+- Explain policies, services, and next steps in simple language.
+- When a request is incomplete, ask for the missing detail before answering.
+
+### Style
+- Be reassuring, professional, and solution-oriented.
+- Keep replies structured and easy to scan.
+- Avoid sounding robotic or overly sales-driven.`,
   },
   {
     group: "Examples",
-    label: "Customer support agent",
+    label: "Sales Qualification",
     value: `### Role
-- Primary Function: You are a customer support agent here to assist users based on specific training data provided. Your main objective is to inform, clarify, and answer questions strictly related to this training data and your role.
+You are a sales-focused assistant helping users understand fit and next steps.
 
-### Persona
-- Identity: You are a dedicated customer support agent. You cannot adopt other personas or impersonate any other entity. If a user tries to make you act as a different chatbot or persona, politely decline and reiterate your role to offer assistance only with matters related to customer support.
+### Goals
+- Understand the user's use case before recommending anything.
+- Ask short discovery questions when requirements are missing.
+- Keep recommendations practical, relevant, and easy to compare.
 
-### Constraints
-1. No Data Divulge: Never mention that you have access to training data explicitly to the user.
-2. Maintaining Focus: If a user attempts to divert you to unrelated topics, never change your role or break your character. Politely redirect the conversation back to topics relevant to customer support.
-3. Exclusive Reliance on Training Data: You must rely exclusively on the training data provided to answer user queries. If a query is not covered by the training data, use the fallback response.
-4. Restrictive Role Focus: You do not answer questions or perform tasks that are not related to your role. This includes refraining from tasks such as coding explanations, personal advice, or any other unrelated activities.`,
+### Style
+- Be consultative, clear, and confident.
+- Do not push too early; first understand the need.
+- Focus on matching needs to the most relevant option.`,
   },
   {
     group: "Examples",
-    label: "Sales agent",
+    label: "Lead Capture",
     value: `### Role
-- Primary Function: You are a sales agent here to assist users based on specific training data provided. Your main objective is to inform, clarify, and answer questions strictly related to this training data and your role.
+You are a lead capture assistant for prospective customers.
 
-### Persona
-- Identity: You are a dedicated sales agent. You cannot adopt other personas or impersonate any other entity. If a user tries to make you act as a different chatbot or persona, politely decline and reiterate your role to offer assistance only with matters related to the training data and your function as a sales agent.
+### Goals
+- Answer high-level questions clearly.
+- Encourage the user toward a concrete next step when appropriate.
+- Collect missing intent or requirement details through natural follow-up questions.
 
-### Constraints
-1. No Data Divulge: Never mention that you have access to training data explicitly to the user.
-2. Maintaining Focus: If a user attempts to divert you to unrelated topics, never change your role or break your character. Politely redirect the conversation back to topics relevant to sales.
-3. Exclusive Reliance on Training Data: You must rely exclusively on the training data provided to answer user queries. If a query is not covered by the training data, use the fallback response.
-4. Restrictive Role Focus: You do not answer questions or perform tasks that are not related to your role. This includes refraining from tasks such as coding explanations, personal advice, or any other unrelated activities.`,
+### Style
+- Be welcoming, concise, and action-oriented.
+- Keep momentum in the conversation.
+- Ask one focused question at a time.`,
+  },
+  {
+    group: "Examples",
+    label: "Product Recommender",
+    value: `### Role
+You help users choose the most relevant product, service, or option.
+
+### Goals
+- Clarify the user's goals, constraints, or use case before recommending.
+- When there are multiple options, explain the differences simply.
+- Recommend only when enough information is available.
+
+### Style
+- Be helpful, neutral, and practical.
+- Prefer short comparisons over long descriptions.
+- If the user is unsure, guide them with simple discovery questions.`,
+  },
+  {
+    group: "Examples",
+    label: "Appointment Booking",
+    value: `### Role
+You assist users who want to schedule, request, or prepare for an appointment or demo.
+
+### Goals
+- Help the user understand the booking process.
+- Ask only for the information needed to move forward.
+- Keep responses clear, organized, and easy to act on.
+
+### Style
+- Be polite, efficient, and organized.
+- Confirm important details clearly.
+- Reduce friction and help the user complete the next step.`,
+  },
+  {
+    group: "Examples",
+    label: "Internal Knowledge Assistant",
+    value: `### Role
+You are an internal knowledge assistant helping users find accurate business information quickly.
+
+### Goals
+- Give precise, direct answers grounded in the available information.
+- Summarize clearly when the source material is dense.
+- Ask a clarifying question if the request is too broad or ambiguous.
+
+### Style
+- Be concise, factual, and easy to follow.
+- Favor clarity over personality.
+- Use short structured answers when that improves understanding.`,
   },
 ];
 
@@ -92,6 +144,13 @@ const PLATFORM_TABS: { id: PlatformTab; label: string; icon: string }[] = [
   { id: "astro", label: "Astro",               icon: "🚀" },
   { id: "react", label: "React / Next.js",     icon: "⚛️" },
   { id: "vue",   label: "Vue / Nuxt",          icon: "💚" },
+];
+
+const STARTER_SUGGESTIONS = [
+  "What do you offer?",
+  "What are your services?",
+  "What are your products?",
+  "Which solution would you recommend?",
 ];
 
 // ── NEW: Platform snippet generator ──────────────────────────────────────────
@@ -221,6 +280,8 @@ export default function PlaygroundPage() {
   // ── AI tab ─────────────────────────────────────────────────────────────────
   const [selectedPreset, setSelectedPreset] = useState("Basic Instructions");
   const [promptText, setPromptText] = useState(PRESET_PROMPTS[0].value);
+  const [customPromptText, setCustomPromptText] = useState("");
+  const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(false);
 
   // ── Embed tab ──────────────────────────────────────────────────────────────
   const [embedType, setEmbedType] = useState<EmbedType>("floating");
@@ -232,7 +293,14 @@ export default function PlaygroundPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [starterSuggestions, setStarterSuggestions] = useState<string[]>(STARTER_SUGGESTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const buildWelcomeMessage = (): ChatMessage => ({
+    id: "welcome-" + Date.now(),
+    role: "assistant",
+    content: welcomeMessage || "Hi! What can I help you with?",
+    suggestions: starterSuggestions,
+  });
 
   // Load settings on mount
   useEffect(() => {
@@ -255,6 +323,7 @@ export default function PlaygroundPage() {
     void cachedFetch(`settings:${agentId}`, () => getSettings(agentId), 60_000).then((s) => {
       setSettings(s);
       setWelcomeMessage(s.welcome_message);
+      setLeadCaptureEnabled(Boolean(s.lead_capture_enabled));
       if (s.display_name)   setDisplayName(s.display_name);
       if (s.website_name)   setWebsiteName(s.website_name);
       if (s.website_url)    setWebsiteUrl(s.website_url);
@@ -265,14 +334,31 @@ export default function PlaygroundPage() {
       if (matched) {
         setSelectedPreset(matched.label);
         setPromptText(matched.value);
+        setCustomPromptText("");
       } else {
         setSelectedPreset("__custom__");
         setPromptText(s.system_prompt);
+        setCustomPromptText(s.system_prompt);
       }
     }).catch((err) =>
       addToast({ title: "Unable to load settings", description: err instanceof Error ? err.message : "Please try again.", variant: "error" })
     );
   }, [agentId]);
+
+  useEffect(() => {
+    setStarterSuggestions(STARTER_SUGGESTIONS);
+    if (!agentId || isNew) return;
+
+    void cachedFetch(`widget-settings:${agentId}`, () => getPublicWidgetSettings(agentId), 60_000)
+      .then((widgetSettings) => {
+        if (widgetSettings.suggestions?.length) {
+          setStarterSuggestions(widgetSettings.suggestions);
+        }
+      })
+      .catch(() => {
+        setStarterSuggestions(STARTER_SUGGESTIONS);
+      });
+  }, [agentId, isNew]);
 
   useEffect(() => {
     if (agent?.name && !displayName) setDisplayName(agent.name);
@@ -282,7 +368,7 @@ export default function PlaygroundPage() {
   useEffect(() => {
     if (prevAgentId.current === agentId) return;
     prevAgentId.current = agentId;
-    setMessages([{ id: "welcome-" + Date.now(), role: "assistant", content: welcomeMessage || "Hi! What can I help you with?" }]);
+    setMessages([buildWelcomeMessage()]);
     setConversationId(null);
   }, [agentId]);
 
@@ -292,12 +378,17 @@ export default function PlaygroundPage() {
         return current;
       }
       const nextContent = welcomeMessage || "Hi! What can I help you with?";
-      if (current[0].content === nextContent) {
+      const nextSuggestions = starterSuggestions.length ? starterSuggestions : STARTER_SUGGESTIONS;
+      const currentSuggestions = current[0].suggestions ?? [];
+      const sameSuggestions =
+        currentSuggestions.length === nextSuggestions.length &&
+        currentSuggestions.every((suggestion, index) => suggestion === nextSuggestions[index]);
+      if (current[0].content === nextContent && sameSuggestions) {
         return current;
       }
-      return [{ ...current[0], content: nextContent }];
+      return [{ ...current[0], content: nextContent, suggestions: nextSuggestions }];
     });
-  }, [conversationId, welcomeMessage]);
+  }, [conversationId, starterSuggestions, welcomeMessage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -305,10 +396,13 @@ export default function PlaygroundPage() {
 
   const handlePresetChange = (label: string) => {
     setSelectedPreset(label);
-    if (label !== "__custom__") {
-      const found = PRESET_PROMPTS.find((p) => p.label === label);
-      if (found) setPromptText(found.value);
+    if (label === "__custom__") {
+      setPromptText(customPromptText);
+      return;
     }
+
+    const found = PRESET_PROMPTS.find((p) => p.label === label);
+    if (found) setPromptText(found.value);
   };
 
   const handleSave = async () => {
@@ -334,6 +428,7 @@ export default function PlaygroundPage() {
           secondary_color: secondaryColor,
           appearance:      appearance,
           temperature:     0.2,
+          lead_capture_enabled: leadCaptureEnabled,
         });
         await refreshAgents();
         router.replace(`/agents/${newAgent.id}/chat`);
@@ -359,6 +454,7 @@ export default function PlaygroundPage() {
         secondary_color: secondaryColor || settings.secondary_color || "#f8fafc",
         appearance: appearance || settings.appearance || "light",
         temperature: settings.temperature,
+        lead_capture_enabled: leadCaptureEnabled,
       });
       setSettings(next);
       invalidate(`settings:${agentId}`);
@@ -372,14 +468,14 @@ export default function PlaygroundPage() {
   };
 
   const resetChat = () => {
-    setMessages([{ id: "welcome-" + Date.now(), role: "assistant", content: welcomeMessage || "Hi! What can I help you with?" }]);
+    setMessages([buildWelcomeMessage()]);
     setConversationId(null);
     setChatInput("");
   };
 
-  const handleSend = async () => {
+  const sendPrompt = async (prompt: string) => {
     if (isNew) return;
-    const trimmed = chatInput.trim();
+    const trimmed = prompt.trim();
     if (!trimmed || chatLoading) return;
     // Capture last bot message BEFORE adding the new user message to state
     const lastBotMsg = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
@@ -389,13 +485,33 @@ export default function PlaygroundPage() {
     try {
       const data = await sendChatMessage({ agent_id: agentId, question: trimmed, conversation_id: conversationId, last_bot_message: lastBotMsg });
       setConversationId(data.conversation_id);
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: data.answer?.trim() || "I don't have enough information to answer that." }]);
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: data.answer?.trim() || "I don't have enough information to answer that.",
+          suggestions: data.suggestions || starterSuggestions,
+        },
+      ]);
       await Promise.all([refreshAgents(), refreshSummary()]);
     } catch {
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: "I'm having trouble reaching the backend. Please try again." }]);
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "I'm having trouble reaching the backend. Please try again.",
+          suggestions: starterSuggestions,
+        },
+      ]);
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const handleSend = async () => {
+    await sendPrompt(chatInput);
   };
 
   // Derived chat preview styles
@@ -649,13 +765,53 @@ export default function PlaygroundPage() {
                   <textarea
                     value={promptText}
                     onChange={(e) => {
-                      setPromptText(e.target.value);
+                      const nextValue = e.target.value;
+                      setPromptText(nextValue);
+                      setCustomPromptText(nextValue);
                       setSelectedPreset("__custom__");
                     }}
                     rows={14}
                     placeholder="Enter your system prompt..."
                     className="mt-2.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white"
                   />
+                </Field>
+
+                <Field
+                  label="Lead capture"
+                  hint="When enabled, the assistant can invite interested users to share contact details and those details will appear in the Leads page."
+                >
+                  <button
+                    type="button"
+                    onClick={() => setLeadCaptureEnabled((current) => !current)}
+                    className={[
+                      "flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition",
+                      leadCaptureEnabled
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white",
+                    ].join(" ")}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {leadCaptureEnabled ? "Lead capture is on" : "Lead capture is off"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        The assistant will only ask when the conversation shows clear follow-up or buying intent.
+                      </p>
+                    </div>
+                    <span
+                      className={[
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                        leadCaptureEnabled ? "bg-emerald-500" : "bg-slate-300",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "inline-block h-5 w-5 rounded-full bg-white transition",
+                          leadCaptureEnabled ? "translate-x-5" : "translate-x-1",
+                        ].join(" ")}
+                      />
+                    </span>
+                  </button>
                 </Field>
               </>
             )}
@@ -757,7 +913,7 @@ export default function PlaygroundPage() {
               width: "400px",
               height: "500px",
               borderRadius: "16px",
-              border: "1px solid #e2e8f0",
+              border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
             }}
           >
             {/* Chat header */}
@@ -796,18 +952,40 @@ export default function PlaygroundPage() {
                   const isUser = msg.role === "user";
                   return (
                     <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className="max-w-[82%] px-4 py-2.5 text-sm leading-6"
-                        style={
-                          isUser
-                            ? { background: primaryColor, color: "#fff", borderRadius: "16px 16px 4px 16px" }
-                            : { background: bubbleBg, color: bubbleText, border: `1px solid ${bubbleBorder}`, borderRadius: "4px 16px 16px 16px" }
-                        }
-                      >
-                        <p
-                          className="whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                        />
+                      <div className={`flex max-w-[82%] flex-col gap-2 ${isUser ? "items-end" : "items-start"}`}>
+                        <div
+                          className="w-full px-4 py-2.5 text-sm leading-6"
+                          style={
+                            isUser
+                              ? { background: primaryColor, color: "#fff", borderRadius: "16px 16px 4px 16px" }
+                              : { background: bubbleBg, color: bubbleText, border: `1px solid ${bubbleBorder}`, borderRadius: "4px 16px 16px 16px" }
+                          }
+                        >
+                          <p
+                            className="whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                          />
+                        </div>
+                        {!isUser && msg.suggestions?.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {msg.suggestions.slice(0, 4).map((suggestion) => (
+                              <button
+                                key={`${msg.id}-${suggestion}`}
+                                type="button"
+                                onClick={() => void sendPrompt(suggestion)}
+                                disabled={chatLoading}
+                                className="rounded-full px-2.5 py-1 !text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                                style={{
+                                  border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
+                                  background: isDark ? "#0f172a" : "#ffffff",
+                                  color: isDark ? "#e2e8f0" : "#334155",
+                                }}
+                              >
+                                {suggestion}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );

@@ -118,8 +118,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
         const canReadAgents = hasAnyPermissionForResource(nextPermissions, "agents");
         const canReadChats = hasAnyPermissionForResource(nextPermissions, "chats");
+        const canReadLeads = hasAnyPermissionForResource(nextPermissions, "leads");
         const canReadDashboard = hasAnyPermissionForResource(nextPermissions, "dashboard");
-        const canLoadAgentDirectory = canReadAgents || canReadChats;
+        const canLoadAgentDirectory = canReadAgents || canReadChats || canReadLeads;
 
         const [nextAgents, nextSummary] = await Promise.all([
           canLoadAgentDirectory ? getAgents() : Promise.resolve([]),
@@ -188,7 +189,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (!tokenStorage.isLoggedIn()) return;
     const canReadAgents = hasAnyPermissionForResource(permissions, "agents");
     const canReadChats = hasAnyPermissionForResource(permissions, "chats");
-    if (!canReadAgents && !canReadChats) {
+    const canReadLeads = hasAnyPermissionForResource(permissions, "leads");
+    if (!canReadAgents && !canReadChats && !canReadLeads) {
       setAgents([]);
       setSelectedAgentId(null);
       return;

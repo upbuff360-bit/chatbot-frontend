@@ -73,6 +73,15 @@ export type AgentSettings = {
   primary_color: string;
   secondary_color: string;
   appearance: string;
+  lead_capture_enabled: boolean;
+};
+
+export type PublicWidgetSettings = {
+  display_name: string;
+  welcome_message: string;
+  primary_color: string;
+  appearance: string;
+  suggestions?: string[];
 };
 
 export type ChatMessage = {
@@ -80,6 +89,7 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+  suggestions?: string[];
 };
 
 export type ConversationSummary = {
@@ -98,9 +108,24 @@ export type ConversationDetail = {
   messages: ChatMessage[];
 };
 
+export type Lead = {
+  id: string;
+  conversation_id: string;
+  source: "chat" | "widget";
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  interest?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ChatResponse = {
   answer: string;
   conversation_id: string;
+  suggestions?: string[];
 };
 
 export type CrawlJob = {

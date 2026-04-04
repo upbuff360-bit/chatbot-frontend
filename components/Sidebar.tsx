@@ -22,6 +22,7 @@ const SECONDARY_ITEMS_DEF = [
     ],
   },
   { label: "Conversations", href: "conversations", resource: "agents" },
+  { label: "Leads", href: "leads", resource: "agents" },
   { label: "Analytics", href: "analytics", resource: "agents" },
 ];
 
@@ -92,6 +93,7 @@ export default function Sidebar() {
   })[] = [
     { label: "Dashboard", href: "/dashboard", icon: DashboardIcon, resource: "dashboard" },
     { label: "Agents", href: "/agents", icon: AgentsIcon, resource: "agents" },
+    { label: "Leads", href: "/leads", icon: LeadsIcon, resource: "leads" },
     { label: "Plans", href: "/plans", icon: PlansIcon, resource: "plans" },
     { label: "Billing", href: "/billing", icon: BillingIcon, resource: "billing" },
     { label: "Chats", href: "/chats", icon: ChatsIcon, resource: "chats" },
@@ -303,6 +305,7 @@ function AgentsIcon() {
     </svg>
   );
 }
+function LeadsIcon() { return <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0M18 7h4M20 5v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function UsageIcon() { return <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]"><path d="M4 19h16M7 16l3-5 3 2 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function BillingIcon() { return <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]"><path d="M3 7h18M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 6h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function ProfileIcon() { return <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]"><path d="M20 21a8 8 0 0 0-16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>; }

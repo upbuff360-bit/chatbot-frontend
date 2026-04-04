@@ -105,6 +105,17 @@ export default function AgentCard({ agent, onUpdate, onDelete }: AgentCardProps)
       onClick: () => router.push(`/agents/${agent.id}/analytics`),
     },
     {
+      label: "Leads",
+      icon: (
+        <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <path d="M8 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/>
+          <path d="M2.5 13.5a5.5 5.5 0 0 1 11 0"/>
+          <path d="M12.5 5.5h2m-1-1v2"/>
+        </svg>
+      ),
+      onClick: () => router.push(`/agents/${agent.id}/leads`),
+    },
+    {
       label: "Knowledge",
       icon: (
         <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
