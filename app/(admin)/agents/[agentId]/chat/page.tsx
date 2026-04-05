@@ -248,17 +248,17 @@ function renderMarkdown(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(
       /^###\s+(.+)$/gm,
-      "<strong style=\"display:block;margin-top:10px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</strong>"
+      "<div style=\"margin-top:10px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</div>"
     )
     .replace(
       /^\[(.+)\]$/gm,
-      "<strong style=\"display:block;margin-top:12px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</strong>"
+      "<div style=\"margin-top:12px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</div>"
     )
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/^- (.+)$/gm, "• $1")
     .replace(/\n/g, "<br>")
-    .replace(/<\/strong><br>/g, "<\/strong>");
+    .replace(/<\/div><br>/g, "<\/div>");
 }
 
 export default function PlaygroundPage() {
