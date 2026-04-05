@@ -246,10 +246,19 @@ function renderMarkdown(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
+    .replace(
+      /^###\s+(.+)$/gm,
+      "<strong style=\"display:block;margin-top:10px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</strong>"
+    )
+    .replace(
+      /^\[(.+)\]$/gm,
+      "<strong style=\"display:block;margin-top:12px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</strong>"
+    )
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/^- (.+)$/gm, "• $1")
-    .replace(/\n/g, "<br>");
+    .replace(/\n/g, "<br>")
+    .replace(/<\/strong><br>/g, "<\/strong>");
 }
 
 export default function PlaygroundPage() {
@@ -994,7 +1003,11 @@ export default function PlaygroundPage() {
               }}
             >
               <div className="space-y-3">
-                {messages.map((msg) => {
+                {(() => {
+                  const lastAssistantId = [...messages].reverse().find(
+                    (m) => m.role === "assistant" && m.content?.trim()
+                  )?.id;
+                  return messages.map((msg) => {
                   const isUser = msg.role === "user";
                   if (!isUser && !msg.content?.trim()) {
                     return null;
@@ -1015,7 +1028,7 @@ export default function PlaygroundPage() {
                             dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                           />
                         </div>
-                        {!isUser && msg.suggestions?.length ? (
+                        {!isUser && msg.id === lastAssistantId && msg.suggestions?.length ? (
                           <div className="flex flex-wrap gap-2">
                             {msg.suggestions.slice(0, 4).map((suggestion) => (
                               <button
@@ -1038,7 +1051,8 @@ export default function PlaygroundPage() {
                       </div>
                     </div>
                   );
-                })}
+                  });
+                })()}
 
                 {chatLoading && (!messages.length || messages[messages.length - 1]?.role !== "assistant" || !messages[messages.length - 1]?.content?.trim()) ? (
                   <div className="flex justify-start">

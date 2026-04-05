@@ -147,21 +147,26 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
       </div>
 
       <div className="h-[28rem] space-y-4 overflow-y-auto bg-slate-50 px-5 py-5">
-        {messages.map((message) => {
-          if (message.role === "assistant" && !message.content?.trim()) {
-            return null;
-          }
-          return (
-            <MessageBubble
-              key={message.id}
-              role={message.role}
-              content={message.content}
-              timestamp={message.timestamp}
-              suggestions={message.suggestions}
-              onSuggestionClick={(suggestion) => void handleSubmit(suggestion)}
-            />
-          );
-        })}
+        {(() => {
+          const lastAssistantId = [...messages].reverse().find(
+            (m) => m.role === "assistant" && m.content?.trim()
+          )?.id;
+          return messages.map((message) => {
+            if (message.role === "assistant" && !message.content?.trim()) {
+              return null;
+            }
+            return (
+              <MessageBubble
+                key={message.id}
+                role={message.role}
+                content={message.content}
+                timestamp={message.timestamp}
+                suggestions={message.id === lastAssistantId ? message.suggestions : []}
+                onSuggestionClick={(suggestion) => void handleSubmit(suggestion)}
+              />
+            );
+          });
+        })()}
 
         {loading && (!messages.length || messages[messages.length - 1]?.role !== "assistant" || !messages[messages.length - 1]?.content?.trim()) ? (
           <div className="flex justify-start">

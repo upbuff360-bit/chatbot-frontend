@@ -6,6 +6,26 @@ type MessageBubbleProps = {
   onSuggestionClick?: (suggestion: string) => void;
 };
 
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(
+      /^###\s+(.+)$/gm,
+      "<strong style=\"display:block;margin-top:10px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</strong>"
+    )
+    .replace(
+      /^\[(.+)\]$/gm,
+      "<strong style=\"display:block;margin-top:12px;margin-bottom:3px;font-weight:700;font-size:0.8rem;letter-spacing:0.01em;\">$1</strong>"
+    )
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/^- (.+)$/gm, "• $1")
+    .replace(/\n/g, "<br>")
+    .replace(/<\/strong><br>/g, "<\/strong>");
+}
+
 function formatTime(timestamp?: string) {
   if (!timestamp) {
     return null;
@@ -37,7 +57,7 @@ export default function MessageBubble({
               : "rounded-bl-md border border-slate-200 bg-white text-slate-700",
           ].join(" ")}
         >
-          <p className="whitespace-pre-wrap">{content}</p>
+          <p className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} />
           {formatTime(timestamp) ? (
             <p className={`mt-2 text-[11px] ${isUser ? "text-slate-300" : "text-slate-400"}`}>{formatTime(timestamp)}</p>
           ) : null}
