@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAdmin } from "@/components/AdminProvider";
 import MessageBubble from "@/components/MessageBubble";
-import { sendChatMessage } from "@/lib/api";
+import { streamChatMessage } from "@/lib/api";
 import { ChatMessage } from "@/lib/types";
 
 type ChatWidgetProps = {
@@ -56,32 +56,72 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
       role: "user",
       content: trimmed,
     };
+    const assistantId = crypto.randomUUID();
 
     setMessages((currentMessages) => [...currentMessages, userMessage]);
     setInput("");
     setLoading(true);
 
     try {
-      const data = await sendChatMessage({
-        agent_id: agentId,
-        question: trimmed,
-        conversation_id: conversationId,
-      });
-      const answer = data.answer?.trim() || "I don't have enough information to answer that.";
-      setConversationId(data.conversation_id);
       setMessages((currentMessages) => [
         ...currentMessages,
         {
-          id: crypto.randomUUID(),
+          id: assistantId,
           role: "assistant",
-          content: answer,
-          suggestions: data.suggestions || STARTER_SUGGESTIONS,
+          content: "",
+          suggestions: [],
         },
       ]);
+      const meta = await streamChatMessage(
+        {
+          agent_id: agentId,
+          question: trimmed,
+          conversation_id: conversationId,
+        },
+        {
+          onToken: (token) => {
+            setMessages((currentMessages) =>
+              currentMessages.map((message) =>
+                message.id === assistantId
+                  ? { ...message, content: `${message.content || ""}${token}` }
+                  : message,
+              ),
+            );
+          },
+          onMeta: (streamMeta) => {
+            if (streamMeta.conversation_id) {
+              setConversationId(streamMeta.conversation_id);
+            }
+            if (Array.isArray(streamMeta.suggestions)) {
+              setMessages((currentMessages) =>
+                currentMessages.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, suggestions: streamMeta.suggestions || STARTER_SUGGESTIONS }
+                    : message,
+                ),
+              );
+            }
+          },
+        },
+      );
+      setMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                content: message.content?.trim() || "I don't have enough information to answer that.",
+                suggestions: message.suggestions?.length ? message.suggestions : meta.suggestions || STARTER_SUGGESTIONS,
+              }
+            : message,
+        ),
+      );
+      if (meta.conversation_id) {
+        setConversationId(meta.conversation_id);
+      }
       await Promise.all([refreshAgents(), refreshSummary(), onConversationUpdated?.()]);
     } catch (error) {
       setMessages((currentMessages) => [
-        ...currentMessages,
+        ...currentMessages.filter((message) => message.id !== assistantId),
         {
           id: crypto.randomUUID(),
           role: "assistant",
@@ -107,18 +147,23 @@ export default function ChatWidget({ agentId, welcomeMessage, onConversationUpda
       </div>
 
       <div className="h-[28rem] space-y-4 overflow-y-auto bg-slate-50 px-5 py-5">
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            role={message.role}
-            content={message.content}
-            timestamp={message.timestamp}
-            suggestions={message.suggestions}
-            onSuggestionClick={(suggestion) => void handleSubmit(suggestion)}
-          />
-        ))}
+        {messages.map((message) => {
+          if (message.role === "assistant" && !message.content?.trim()) {
+            return null;
+          }
+          return (
+            <MessageBubble
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              timestamp={message.timestamp}
+              suggestions={message.suggestions}
+              onSuggestionClick={(suggestion) => void handleSubmit(suggestion)}
+            />
+          );
+        })}
 
-        {loading ? (
+        {loading && (!messages.length || messages[messages.length - 1]?.role !== "assistant" || !messages[messages.length - 1]?.content?.trim()) ? (
           <div className="flex justify-start">
             <div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
               <span className="flex gap-1">

@@ -29,6 +29,10 @@ type UploadProgress = {
 };
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
+type StreamHandlers = {
+  onToken?: (token: string) => void;
+  onMeta?: (meta: { conversation_id?: string; suggestions?: string[] }) => void;
+};
 
 async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const { skipAuth, ...fetchInit } = init ?? {};
@@ -352,6 +356,121 @@ export function sendChatMessage(payload: {
       last_bot_message: payload.last_bot_message ?? "",
     }),
   });
+}
+
+export async function streamChatMessage(
+  payload: {
+    agent_id: string;
+    question: string;
+    conversation_id?: string | null;
+    last_bot_message?: string;
+  },
+  handlers?: StreamHandlers,
+) {
+  const token = tokenStorage.getToken();
+  const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      agent_id: payload.agent_id,
+      question: payload.question,
+      conversation_id: payload.conversation_id,
+      last_bot_message: payload.last_bot_message ?? "",
+    }),
+  });
+
+  if (response.status === 401) {
+    tokenStorage.clear();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw new Error("Session expired. Please sign in again.");
+  }
+
+  if (!response.ok) {
+    let detail = `Request failed with status ${response.status}`;
+    try {
+      const payload = (await response.json()) as { detail?: string | { msg: string }[] };
+      if (typeof payload.detail === "string") {
+        detail = payload.detail;
+      } else if (Array.isArray(payload.detail)) {
+        detail = payload.detail.map((d) => d.msg).join(", ");
+      }
+    } catch {}
+    throw new Error(detail);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming is not available right now.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let meta: { conversation_id?: string; suggestions?: string[] } = {};
+
+  const flushEvent = (rawEvent: string) => {
+    const normalized = rawEvent.replace(/\r/g, "").trim();
+    if (!normalized) return false;
+
+    let eventName = "message";
+    const dataLines: string[] = [];
+    for (const line of normalized.split("\n")) {
+      if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        let value = line.slice(5);
+        if (value.startsWith(" ")) {
+          value = value.slice(1);
+        }
+        dataLines.push(value);
+      }
+    }
+    const data = dataLines.join("\n");
+    if (!data) return false;
+
+    if (eventName === "meta") {
+      try {
+        meta = JSON.parse(data) as { conversation_id?: string; suggestions?: string[] };
+        handlers?.onMeta?.(meta);
+      } catch {}
+      return false;
+    }
+    if (eventName === "error") {
+      throw new Error(data || "Streaming failed.");
+    }
+    if (eventName === "done" || data === "[DONE]") {
+      return true;
+    }
+
+    handlers?.onToken?.(data.replace(/\\n/g, "\n"));
+    return false;
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      if (flushEvent(rawEvent)) {
+        return meta;
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+
+    if (done) {
+      if (buffer.trim()) {
+        flushEvent(buffer);
+      }
+      return meta;
+    }
+  }
 }
 
 // ── Conversations ─────────────────────────────────────────────────────────────

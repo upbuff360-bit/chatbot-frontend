@@ -5,7 +5,7 @@ import { cachedFetch, invalidate } from "@/lib/client-cache";
 import { useParams, useRouter } from "next/navigation";
 
 import { useAdmin } from "@/components/AdminProvider";
-import { getPublicWidgetSettings, getSettings, updateSettings, sendChatMessage, getDocuments } from "@/lib/api";
+import { getPublicWidgetSettings, getSettings, updateSettings, streamChatMessage, getDocuments } from "@/lib/api";
 import { AgentSettings, ChatMessage, KnowledgeDocument } from "@/lib/types";
 
 // ─── Preset system prompts ───────────────────────────────────────────────────
@@ -479,25 +479,71 @@ export default function PlaygroundPage() {
     if (!trimmed || chatLoading) return;
     // Capture last bot message BEFORE adding the new user message to state
     const lastBotMsg = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+    const assistantId = crypto.randomUUID();
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: trimmed }]);
     setChatInput("");
     setChatLoading(true);
     try {
-      const data = await sendChatMessage({ agent_id: agentId, question: trimmed, conversation_id: conversationId, last_bot_message: lastBotMsg });
-      setConversationId(data.conversation_id);
       setMessages((m) => [
         ...m,
         {
-          id: crypto.randomUUID(),
+          id: assistantId,
           role: "assistant",
-          content: data.answer?.trim() || "I don't have enough information to answer that.",
-          suggestions: data.suggestions || starterSuggestions,
+          content: "",
+          suggestions: [],
         },
       ]);
+      const meta = await streamChatMessage(
+        {
+          agent_id: agentId,
+          question: trimmed,
+          conversation_id: conversationId,
+          last_bot_message: lastBotMsg,
+        },
+        {
+          onToken: (token) => {
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === assistantId
+                  ? { ...message, content: `${message.content || ""}${token}` }
+                  : message,
+              ),
+            );
+          },
+          onMeta: (streamMeta) => {
+            if (streamMeta.conversation_id) {
+              setConversationId(streamMeta.conversation_id);
+            }
+            if (Array.isArray(streamMeta.suggestions)) {
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, suggestions: streamMeta.suggestions || starterSuggestions }
+                    : message,
+                ),
+              );
+            }
+          },
+        },
+      );
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                content: message.content?.trim() || "I don't have enough information to answer that.",
+                suggestions: message.suggestions?.length ? message.suggestions : meta.suggestions || starterSuggestions,
+              }
+            : message,
+        ),
+      );
+      if (meta.conversation_id) {
+        setConversationId(meta.conversation_id);
+      }
       await Promise.all([refreshAgents(), refreshSummary()]);
     } catch {
       setMessages((m) => [
-        ...m,
+        ...m.filter((message) => message.id !== assistantId),
         {
           id: crypto.randomUUID(),
           role: "assistant",
@@ -950,6 +996,9 @@ export default function PlaygroundPage() {
               <div className="space-y-3">
                 {messages.map((msg) => {
                   const isUser = msg.role === "user";
+                  if (!isUser && !msg.content?.trim()) {
+                    return null;
+                  }
                   return (
                     <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                       <div className={`flex max-w-[82%] flex-col gap-2 ${isUser ? "items-end" : "items-start"}`}>
@@ -991,7 +1040,7 @@ export default function PlaygroundPage() {
                   );
                 })}
 
-                {chatLoading && (
+                {chatLoading && (!messages.length || messages[messages.length - 1]?.role !== "assistant" || !messages[messages.length - 1]?.content?.trim()) ? (
                   <div className="flex justify-start">
                     <div
                       className="inline-flex items-center gap-1.5 px-4 py-2.5"
@@ -1002,7 +1051,8 @@ export default function PlaygroundPage() {
                       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
                     </div>
                   </div>
-                )}
+                ) : null}
+
                 <div ref={messagesEndRef} />
               </div>
             </div>
