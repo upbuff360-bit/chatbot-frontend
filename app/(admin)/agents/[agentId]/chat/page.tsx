@@ -1028,7 +1028,7 @@ export default function PlaygroundPage() {
                             dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                           />
                         </div>
-                        {!isUser && msg.id === lastAssistantId && msg.suggestions?.length ? (
+                        {/* {!isUser && msg.id === lastAssistantId && msg.suggestions?.length ? (
                           <div className="flex flex-wrap gap-2">
                             {msg.suggestions.slice(0, 4).map((suggestion) => (
                               <button
@@ -1047,7 +1047,7 @@ export default function PlaygroundPage() {
                               </button>
                             ))}
                           </div>
-                        ) : null}
+                        ) : null} */}
                       </div>
                     </div>
                   );
